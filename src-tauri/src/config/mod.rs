@@ -27,6 +27,7 @@ pub enum AccentColor {
     Green,
     Cyan,
     Purple,
+    Red,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,7 +76,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme: ThemeConfig {
-                accent_color: AccentColor::Cyan,
+                accent_color: AccentColor::Red,
                 font_size: 14,
                 show_album_art: true,
             },
@@ -121,6 +122,7 @@ impl AppConfig {
             AccentColor::Green => "#00ff88",
             AccentColor::Cyan => "#00e5ff",
             AccentColor::Purple => "#b366ff",
+            AccentColor::Red => "#DC143C",
         }
     }
 }

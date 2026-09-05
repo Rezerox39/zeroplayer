@@ -35,7 +35,7 @@ export default function App() {
         if (stats.status === 'fulfilled') setListeningStats(stats.value);
 
         // Apply accent color to CSS variable
-        const accentMap: Record<string, string> = { green: '#00ff88', cyan: '#00e5ff', purple: '#b366ff' };
+        const accentMap: Record<string, string> = { green: '#00ff88', cyan: '#00e5ff', purple: '#b366ff', red: '#DC143C' };
         const color = accentMap[cfg.status === 'fulfilled' ? cfg.value.theme.accent_color : 'cyan'];
         document.documentElement.style.setProperty('--accent', color);
       } catch (e) {

@@ -26,6 +26,7 @@ pub async fn update_config(state: State<'_, AppState>, config: AppConfig) -> Res
 #[tauri::command]
 pub async fn get_available_accents() -> Result<Vec<String>, String> {
     Ok(vec![
+        "red".to_string(),
         "green".to_string(),
         "cyan".to_string(),
         "purple".to_string(),

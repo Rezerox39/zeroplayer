@@ -76,7 +76,7 @@ export interface ListeningStats {
   unique_tracks: number;
 }
 
-export type AccentColor = 'green' | 'cyan' | 'purple';
+export type AccentColor = 'green' | 'cyan' | 'purple' | 'red';
 
 export interface ThemeConfig {
   accent_color: AccentColor;

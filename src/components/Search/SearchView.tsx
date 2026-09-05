@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
-import { searchLibrary, ytmusicSearchAsTracks, jellyfinSearch, telegramSearch, playTrack } from '../../lib/tauri';
+import { searchLibrary, ytmusicSearchAsTracks, jellyfinSearch, playTrack } from '../../lib/tauri';
 import type { Track } from '../../types';
 
-type SearchSource = 'all' | 'local' | 'jellyfin' | 'yt-music' | 'telegram';
+type SearchSource = 'all' | 'local' | 'jellyfin' | 'yt-music';
 
 const SOURCES: { id: SearchSource; label: string }[] = [
   { id: 'all', label: 'all' },
   { id: 'local', label: 'local' },
   { id: 'jellyfin', label: 'jellyfin' },
   { id: 'yt-music', label: 'yt-music' },
-  { id: 'telegram', label: 'telegram' },
 ];
 
 export default function SearchView() {
@@ -36,10 +35,6 @@ export default function SearchView() {
       }
       if (source === 'all' || source === 'jellyfin') {
         const r = await jellyfinSearch(query);
-        all.push(...(r as Track[]));
-      }
-      if (source === 'all' || source === 'telegram') {
-        const r = await telegramSearch(query);
         all.push(...(r as Track[]));
       }
     } catch (e) {

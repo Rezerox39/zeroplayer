@@ -58,12 +58,20 @@ export const ytmusicSearchAsTracks = (query: string) =>
 export const ytmusicGetStreamUrl = (videoId: string) =>
   invoke('ytmusic_get_stream_url', { videoId });
 
-// Telegram
-export const telegramConnect = (botToken: string, channels: string[]) =>
-  invoke('telegram_connect', { botToken, channels });
+// Telegram (login-based via Pyrogram)
+export const telegramConnect = (apiId: number, apiHash: string) =>
+  invoke('telegram_connect', { apiId, apiHash });
+export const telegramSendPhone = (phoneNumber: string) =>
+  invoke('telegram_send_phone', { phoneNumber });
+export const telegramSubmitCode = (code: string) =>
+  invoke('telegram_submit_code', { code });
+export const telegramSubmitPassword = (password: string) =>
+  invoke('telegram_submit_password', { password });
 export const telegramGetChannels = () => invoke('telegram_get_channels');
-export const telegramGetAudio = (channelId: string) => invoke('telegram_get_audio', { channelId });
-export const telegramSearch = (query: string) => invoke('telegram_search', { query });
+export const telegramGetAudio = (channelId: number) =>
+  invoke('telegram_get_audio', { channelId });
+export const telegramDownloadAudio = (messageId: number, channelId: number) =>
+  invoke('telegram_download_audio', { messageId, channelId });
 
 // Lyrics
 export const fetchLyrics = (title: string, artist: string): Promise<LyricsResult | null> =>

@@ -5,25 +5,57 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YTMusicSearchResult {
-    pub video_id: Option<String>,
+    pub id: String,
     pub title: String,
     pub artist: Option<String>,
-    pub album: Option<String>,
-    pub duration_secs: Option<f64>,
+    pub duration: Option<i64>,
+    pub thumbnail: Option<String>,
 }
 
-/// Wraps the `ytmusicapi` Python library via a small helper script.
-/// This avoids reimplementing YouTube internals in Rust and stays
-/// up-to-date with ytmusicapi's maintained codebase.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YTStreamResponse {
+    pub id: Option<String>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub url: Option<String>,
+    pub ext: Option<String>,
+    pub filesize: Option<u64>,
+    pub duration: Option<u64>,
+    pub error: Option<String>,
+    #[serde(default)]
+    pub formats: Vec<YTFormat>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YTFormat {
+    pub format_id: Option<String>,
+    pub url: Option<String>,
+    pub ext: Option<String>,
+    pub acodec: Option<String>,
+    pub vcodec: Option<String>,
+    pub abr: Option<f64>,
+    pub filesize: Option<u64>,
+    #[serde(default)]
+    pub http_headers: Option<serde_json::Map<String, serde_json::Value>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YTSearchResponse {
+    pub entries: Vec<YTMusicSearchResult>,
+    pub error: Option<String>,
+}
+
+/// Wraps the yt-dlp Python bridge (python/download.py).
+/// yt-dlp is the primary resolver for stream URLs — it handles
+/// signature deobfuscation, n-transform, PO tokens, client rotation.
 pub struct YTMusicClient {
     python_script: String,
 }
 
 impl YTMusicClient {
     pub fn new() -> Self {
-        // The helper script is bundled with the app under python/ytmusic_bridge.py
         Self {
-            python_script: "python/ytmusic_bridge.py".to_string(),
+            python_script: "python/download.py".to_string(),
         }
     }
 
@@ -33,11 +65,11 @@ impl YTMusicClient {
             .args(args)
             .env("PYTHONUNBUFFERED", "1")
             .output()
-            .map_err(|e| format!("Failed to run ytmusicapi: {}", e))?;
+            .map_err(|e| format!("Failed to run yt-dlp bridge: {}", e))?;
 
         if !output.status.success() {
             return Err(format!(
-                "ytmusicapi error: {}",
+                "yt-dlp bridge error: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -45,42 +77,39 @@ impl YTMusicClient {
         String::from_utf8(output.stdout).map_err(|e| e.to_string())
     }
 
-    pub fn search(&self, query: &str, filter: &str) -> Result<Vec<YTMusicSearchResult>, String> {
-        let out = self.run_script(&["search", query, filter])?;
-        let results: Vec<YTMusicSearchResult> = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-        Ok(results)
-    }
-
-    pub fn get_stream_url(&self, video_id: &str) -> Result<String, String> {
-        let out = self.run_script(&["stream_url", video_id])?;
-        Ok(out.trim().to_string())
-    }
-
-    pub fn get_lyrics(&self, video_id: &str) -> Result<Option<String>, String> {
-        let out = self.run_script(&["lyrics", video_id])?;
-        let trimmed = out.trim();
-        if trimmed.is_empty() || trimmed == "null" {
-            Ok(None)
-        } else {
-            Ok(Some(trimmed.to_string()))
+    pub fn search(&self, query: &str) -> Result<Vec<YTMusicSearchResult>, String> {
+        let out = self.run_script(&["search", query])?;
+        let parsed: YTSearchResponse = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+        if let Some(err) = parsed.error {
+            return Err(err);
         }
+        Ok(parsed.entries)
+    }
+
+    pub fn resolve_stream(&self, video_id: &str) -> Result<YTStreamResponse, String> {
+        let out = self.run_script(&["stream", video_id])?;
+        let parsed: YTStreamResponse = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+        if let Some(err) = parsed.error {
+            return Err(err);
+        }
+        Ok(parsed)
     }
 
     pub fn to_track(&self, result: YTMusicSearchResult) -> Track {
         Track {
-            id: result.video_id.clone().unwrap_or_default(),
+            id: result.id.clone(),
             title: result.title,
             artist: result.artist,
-            album: result.album,
+            album: None,
             album_artist: None,
             genre: None,
             year: None,
             track_number: None,
-            duration: result.duration_secs,
+            duration: result.duration.map(|d| d as f64),
             file_path: None,
             source: "youtube_music".to_string(),
-            source_id: result.video_id,
-            cover_path: None,
+            source_id: Some(result.id),
+            cover_path: result.thumbnail,
             play_count: Some(0),
             last_played_at: None,
             created_at: None,

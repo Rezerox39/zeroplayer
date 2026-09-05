@@ -94,9 +94,12 @@ pub fn run() {
             sources::ytmusic::commands::ytmusic_get_stream_url,
             sources::ytmusic::commands::ytmusic_get_lyrics,
             sources::telegram::commands::telegram_connect,
+            sources::telegram::commands::telegram_send_phone,
+            sources::telegram::commands::telegram_submit_code,
+            sources::telegram::commands::telegram_submit_password,
             sources::telegram::commands::telegram_get_channels,
             sources::telegram::commands::telegram_get_audio,
-            sources::telegram::commands::telegram_search,
+            sources::telegram::commands::telegram_download_audio,
             // Lyrics commands
             lyrics::commands::fetch_lyrics,
             // Stats commands
