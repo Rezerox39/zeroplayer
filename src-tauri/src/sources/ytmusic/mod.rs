@@ -150,4 +150,24 @@ impl YTMusicClient {
             updated_at: None,
         }
     }
+
+    pub fn download_to_temp(&self, video_id: &str) -> Result<String, String> {
+        let out = self.run_script(&["download", video_id])?;
+        let parsed: serde_json::Value = serde_json::from_str(&out)
+            .map_err(|e| format!("Failed to parse download response: {}", e))?;
+        if let Some(err) = parsed.get("error").and_then(|e| e.as_str()) {
+            return Err(err.to_string());
+        }
+        parsed.get("file_path")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| "No file path in download response".to_string())
+    }
+
+    pub fn to_track_from_download(&self, result: YTMusicSearchResult, file_path: String) -> Track {
+        let mut track = self.to_track(result);
+        track.file_path = Some(file_path);
+        track
+    }
+
 }

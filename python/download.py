@@ -136,6 +136,73 @@ def search_youtube(query: str) -> str:
         return json.dumps({"error": f"{type(e).__name__}: {e}"})
 
 
+def download_to_file(video_id: str, out_dir: str = "") -> str:
+    """Download a YouTube video audio to a local file and return the file path."""
+    try:
+        import yt_dlp
+    except ImportError:
+        return json.dumps({"error": "yt-dlp not installed. Run: pip install yt-dlp"})
+
+    import tempfile
+    if not out_dir:
+        out_dir = os.path.join(tempfile.gettempdir(), "zeroplayer")
+    os.makedirs(out_dir, exist_ok=True)
+
+    outtmpl = os.path.join(out_dir, "%(id)s.%(ext)s")
+    opts = {
+        "format": "bestaudio[acodec!=none]/bestaudio/best",
+        "outtmpl": outtmpl,
+        "quiet": True,
+        "no_warnings": True,
+        "geo_bypass": True,
+        "no_check_certificates": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web", "android", "ios", "tv"],
+                "player_skip": ["webpage"],
+            }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "*/*",
+        },
+        "source_address": "0.0.0.0",
+        "socket_timeout": 30,
+    }
+
+    try:
+        ydl = yt_dlp.YoutubeDL(opts)
+        info = ydl.extract_info(video_id, download=True)
+        if info is None:
+            return json.dumps({"error": "extract_info returned None", "id": video_id})
+
+        # Find the downloaded file
+        filename = ydl.prepare_filename(info)
+        if os.path.exists(filename):
+            return json.dumps({
+                "id": info.get("id", video_id),
+                "title": info.get("title", ""),
+                "file_path": filename,
+                "ext": info.get("ext", "mp4"),
+            })
+        else:
+            # Try alternate extensions
+            for ext in ["webm", "m4a", "opus", "mp3", "mp4", "ogg"]:
+                alt = os.path.join(out_dir, f"{video_id}.{ext}")
+                if os.path.exists(alt):
+                    return json.dumps({
+                        "id": info.get("id", video_id),
+                        "title": info.get("title", ""),
+                        "file_path": alt,
+                        "ext": ext,
+                    })
+            return json.dumps({"error": f"Downloaded file not found at {filename}", "id": video_id})
+
+    except Exception as e:
+        return json.dumps({"error": f"{type(e).__name__}: {e}", "id": video_id})
+
+
 def list_playlist(url: str) -> str:
     """List tracks in a YouTube Music / YouTube playlist."""
     try:
@@ -201,7 +268,7 @@ def get_lyrics(video_id: str) -> str:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(json.dumps({"error": "Usage: download.py <stream|search|playlist|lyrics> <arg>"}))
+        print(json.dumps({"error": "Usage: download.py <stream|search|download|playlist|lyrics> <arg>"}))
         sys.exit(1)
 
     command = sys.argv[1]
@@ -209,6 +276,10 @@ if __name__ == "__main__":
     if command == "stream":
         video_id = sys.argv[2] if len(sys.argv) > 2 else ""
         print(resolve_stream(video_id))
+    elif command == "download":
+        video_id = sys.argv[2] if len(sys.argv) > 2 else ""
+        out_dir = sys.argv[3] if len(sys.argv) > 3 else ""
+        print(download_to_file(video_id, out_dir))
     elif command == "search":
         query = sys.argv[2] if len(sys.argv) > 2 else ""
         print(search_youtube(query))
