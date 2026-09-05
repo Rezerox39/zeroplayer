@@ -1,5 +1,6 @@
 pub mod commands;
 
+use crate::config::paths;
 use crate::library::Track;
 use serde::{Deserialize, Serialize};
 
@@ -48,11 +49,6 @@ pub struct TelegramDownloadResult {
     pub error: Option<String>,
 }
 
-/// Telegram client using Pyrogram (Python) for user login.
-/// Mirrors ZMT's TDLib-based auth flow:
-///   phone number → verification code → (2FA password) → logged in
-///
-/// Session is persisted in ~/.config/zeroplayer/telegram/
 pub struct TelegramClient {
     python_script: String,
 }
@@ -60,49 +56,78 @@ pub struct TelegramClient {
 impl TelegramClient {
     pub fn new() -> Self {
         Self {
-            python_script: "python/telegram_login.py".to_string(),
+            python_script: String::new(),
+        }
+    }
+
+    fn script_path(&self) -> String {
+        if self.python_script.is_empty() {
+            let path = paths::resolve_resource_path("python/telegram_login.py");
+            path.display().to_string()
+        } else {
+            self.python_script.clone()
         }
     }
 
     fn run_script(&self, args: &[&str]) -> Result<String, String> {
-        let output = std::process::Command::new("python3")
-            .arg(&self.python_script)
+        let python = paths::find_python()
+            .ok_or_else(|| "Python not found. Install Python 3.8+ and add to PATH.".to_string())?;
+
+        let script = self.script_path();
+
+        log::info!("Running: {} {} {}", python, script, args.join(" "));
+
+        let output = std::process::Command::new(&python)
+            .arg(&script)
             .args(args)
             .env("PYTHONUNBUFFERED", "1")
             .output()
-            .map_err(|e| format!("Failed to run Telegram bridge: {}", e))?;
+            .map_err(|e| format!("Failed to run Python ({}): {}", python, e))?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Telegram bridge error: {}", stderr));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if !stderr.is_empty() {
+            log::warn!("Telegram stderr: {}", stderr);
         }
 
-        String::from_utf8(output.stdout).map_err(|e| e.to_string())
+        if !output.status.success() {
+            return Err(format!(
+                "Telegram bridge exited with code {}: {}",
+                output.status.code().unwrap_or(-1),
+                stderr.chars().take(500).collect::<String>()
+            ));
+        }
+
+        let stdout = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
+        if stdout.trim().is_empty() {
+            return Err("Telegram bridge returned empty output".to_string());
+        }
+
+        Ok(stdout)
     }
 
     pub fn init(&self, api_id: i32, api_hash: &str) -> Result<TelegramAuthResult, String> {
         let out = self.run_script(&["init", &api_id.to_string(), api_hash])?;
-        serde_json::from_str(&out).map_err(|e| e.to_string())
+        serde_json::from_str(&out).map_err(|e| format!("Failed to parse output: {}", e))
     }
 
     pub fn send_phone(&self, phone: &str) -> Result<TelegramAuthResult, String> {
         let out = self.run_script(&["phone", phone])?;
-        serde_json::from_str(&out).map_err(|e| e.to_string())
+        serde_json::from_str(&out).map_err(|e| format!("Failed to parse output: {}", e))
     }
 
     pub fn submit_code(&self, code: &str) -> Result<TelegramAuthResult, String> {
         let out = self.run_script(&["code", code])?;
-        serde_json::from_str(&out).map_err(|e| e.to_string())
+        serde_json::from_str(&out).map_err(|e| format!("Failed to parse output: {}", e))
     }
 
     pub fn submit_password(&self, password: &str) -> Result<TelegramAuthResult, String> {
         let out = self.run_script(&["password", password])?;
-        serde_json::from_str(&out).map_err(|e| e.to_string())
+        serde_json::from_str(&out).map_err(|e| format!("Failed to parse output: {}", e))
     }
 
     pub fn get_channels(&self) -> Result<Vec<TelegramChannel>, String> {
         let out = self.run_script(&["channels"])?;
-        let parsed: TelegramChannelsResult = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+        let parsed: TelegramChannelsResult = serde_json::from_str(&out).map_err(|e| format!("Failed to parse output: {}", e))?;
         if let Some(err) = parsed.error {
             return Err(err);
         }
@@ -111,7 +136,7 @@ impl TelegramClient {
 
     pub fn get_audio(&self, channel_id: i64) -> Result<Vec<TelegramAudioInfo>, String> {
         let out = self.run_script(&["audio", &channel_id.to_string()])?;
-        let parsed: TelegramAudioResult = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+        let parsed: TelegramAudioResult = serde_json::from_str(&out).map_err(|e| format!("Failed to parse output: {}", e))?;
         if let Some(err) = parsed.error {
             return Err(err);
         }
@@ -124,7 +149,7 @@ impl TelegramClient {
             &message_id.to_string(),
             &channel_id.to_string(),
         ])?;
-        let parsed: TelegramDownloadResult = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+        let parsed: TelegramDownloadResult = serde_json::from_str(&out).map_err(|e| format!("Failed to parse output: {}", e))?;
         if let Some(err) = parsed.error {
             return Err(err);
         }
@@ -134,7 +159,7 @@ impl TelegramClient {
     pub fn to_track(&self, audio: TelegramAudioInfo) -> Track {
         let id = format!("tg_{}", audio.message_id);
         Track {
-            id: id.clone(),
+            id,
             title: audio.title,
             artist: if audio.artist.is_empty() { None } else { Some(audio.artist) },
             album: None,

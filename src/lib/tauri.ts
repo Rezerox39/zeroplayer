@@ -42,6 +42,8 @@ export const getArtists = (): Promise<Artist[]> => invoke('get_artists');
 export const getFolders = (): Promise<Folder[]> => invoke('get_folders');
 export const getPlaylists = (): Promise<Playlist[]> => invoke('get_playlists');
 export const searchLibrary = (query: string): Promise<Track[]> => invoke('search_library', { query });
+export const autoScanMusic = (): Promise<number> => invoke('auto_scan_music');
+export const getCommonMusicDirs = (): Promise<string[]> => invoke('get_common_music_dirs');
 
 // Jellyfin
 export const jellyfinConnect = (serverUrl: string, apiKey: string, userId: string) =>

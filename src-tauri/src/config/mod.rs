@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod paths;
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;

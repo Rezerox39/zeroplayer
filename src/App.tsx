@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { usePlayerStore } from './stores/playerStore';
 import { useLibraryStore } from './stores/libraryStore';
-import { getConfig, getTracks, getAlbums, getArtists, getListeningStats } from './lib/tauri';
+import { getConfig, getTracks, getAlbums, getArtists, getListeningStats, autoScanMusic } from './lib/tauri';
 import Sidebar from './components/common/Sidebar';
 import Player from './components/Player/Player';
 import FullPlayer from './components/Player/FullPlayer';
@@ -33,6 +33,18 @@ export default function App() {
         if (albums.status === 'fulfilled') setAlbums(albums.value);
         if (artists.status === 'fulfilled') setArtists(artists.value);
         if (stats.status === 'fulfilled') setListeningStats(stats.value);
+
+        // Auto-scan common music folders
+        try {
+          const scanned = await autoScanMusic();
+          if (scanned > 0) {
+            // Re-fetch library after auto-scan
+            const [t2, a2, ar2] = await Promise.allSettled([getTracks(), getAlbums(), getArtists()]);
+            if (t2.status === 'fulfilled') setTracks(t2.value);
+            if (a2.status === 'fulfilled') setAlbums(a2.value);
+            if (ar2.status === 'fulfilled') setArtists(ar2.value);
+          }
+        } catch (e) { /* auto-scan best effort */ }
 
         // Apply accent color to CSS variable
         const accentMap: Record<string, string> = { green: '#00ff88', cyan: '#00e5ff', purple: '#b366ff', red: '#DC143C' };

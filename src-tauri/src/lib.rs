@@ -84,6 +84,8 @@ pub fn run() {
             library::commands::get_folders,
             library::commands::get_playlists,
             library::commands::search_library,
+            library::commands::auto_scan_music,
+            library::commands::get_common_music_dirs,
             // Source commands
             sources::jellyfin::commands::jellyfin_connect,
             sources::jellyfin::commands::jellyfin_get_libraries,

@@ -38,6 +38,7 @@ bytes = "1"
 image = { version = "0.25", features = ["png", "jpeg"] }
 base64 = "0.22"
 urlencoding = "2"
+dirs = "5"
 
 [features]
 default = ["custom-protocol"]
