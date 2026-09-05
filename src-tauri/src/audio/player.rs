@@ -25,6 +25,7 @@ pub struct PlaybackState {
 }
 
 enum AudioCommand {
+    #[allow(dead_code)]
     Play(String),
     Pause,
     Resume,
@@ -74,10 +75,9 @@ impl AudioState {
             .as_ref()
             .ok_or_else(|| "No file path for track".to_string())?;
 
-        self.cmd_tx
-            .send(AudioCommand::Play(path.clone()))
-            .map_err(|e| format!("Audio thread stopped: {}", e))?;
-
+        // Actual audio playback is handled by HTML5 Audio in the frontend.
+        // The rodio backend only tracks state so get_playback_state stays in sync.
+        let _ = path;
         *self.current_track.lock().unwrap() = Some(track.clone());
         *self.duration.lock().unwrap() = track.duration.unwrap_or(0.0);
         *self.position.lock().unwrap() = 0.0;
