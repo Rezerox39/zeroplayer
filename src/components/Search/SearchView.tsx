@@ -18,36 +18,44 @@ export default function SearchView() {
   const [source, setSource] = useState<SearchSource>('all');
   const [results, setResults] = useState<Track[]>([]);
   const [searching, setSearching] = useState(false);
+  const [error, setError] = useState('');
 
   const runSearch = async () => {
     if (!query.trim()) return;
     setSearching(true);
+    setError('');
     const all: Track[] = [];
+    const errors: string[] = [];
 
     try {
       if (source === 'all' || source === 'local') {
-        const r = await searchLibrary(query);
-        all.push(...r);
+        try { const r = await searchLibrary(query); all.push(...r); }
+        catch (e: any) { errors.push(`local: ${e}`); }
       }
       if (source === 'all' || source === 'yt-music') {
-        const r = await ytmusicSearchAsTracks(query);
-        all.push(...r);
+        try { const r = await ytmusicSearchAsTracks(query); all.push(...r); }
+        catch (e: any) { errors.push(`yt-music: ${e}`); }
       }
       if (source === 'all' || source === 'jellyfin') {
-        const r = await jellyfinSearch(query);
-        all.push(...(r as Track[]));
+        try { const r = await jellyfinSearch(query); all.push(...(r as Track[])); }
+        catch (e: any) { errors.push(`jellyfin: ${e}`); }
       }
-    } catch (e) {
-      // ignore source-specific errors (unconfigured sources)
+    } catch (e: any) {
+      errors.push(e.toString());
     }
 
     setResults(all);
+    if (errors.length > 0) setError(errors.join('\n'));
     setSearching(false);
   };
 
   const handlePlay = async (track: Track) => {
-    const st = await playTrack(track);
-    setPlayback(st);
+    try {
+      const st = await playTrack(track);
+      setPlayback(st);
+    } catch (e: any) {
+      setError(`Failed to play "${track.title}": ${e}`);
+    }
   };
 
   return (
@@ -72,7 +80,6 @@ export default function SearchView() {
           </button>
         </div>
 
-        {/* Source filter */}
         <div className="flex mt-3 gap-2">
           {SOURCES.map((s) => (
             <button
@@ -87,6 +94,12 @@ export default function SearchView() {
             </button>
           ))}
         </div>
+
+        {error && (
+          <div className="mt-3 px-3 py-2 bg-red-900/30 border border-red-800 font-mono text-[10px] text-red-400 whitespace-pre-wrap">
+            {error}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto divide-y divide-surface-2">
@@ -110,7 +123,7 @@ export default function SearchView() {
             )}
           </div>
         ))}
-        {results.length === 0 && !searching && (
+        {results.length === 0 && !searching && !error && (
           <div className="p-12 text-center font-mono text-xs text-gray-600">
             {query ? 'no results' : 'type a query and press enter'}
           </div>

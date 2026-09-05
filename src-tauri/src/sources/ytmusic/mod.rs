@@ -44,68 +44,75 @@ pub struct YTSearchResponse {
     pub error: Option<String>,
 }
 
-pub struct YTMusicClient {
-    python_script: String,
-}
+pub struct YTMusicClient;
 
 impl YTMusicClient {
-    pub fn new() -> Self {
-        Self {
-            python_script: String::new(),
-        }
-    }
+    pub fn new() -> Self { Self }
 
-    fn script_path(&self) -> String {
-        if self.python_script.is_empty() {
-            let path = paths::resolve_resource_path("python/download.py");
-            path.display().to_string()
+    fn script_path() -> Result<String, String> {
+        let path = paths::resolve_resource_path("python/download.py");
+        if path.exists() {
+            Ok(path.display().to_string())
         } else {
-            self.python_script.clone()
+            Err(format!(
+                "Script not found: {}. Make sure python/ folder is in the app directory.",
+                path.display()
+            ))
         }
     }
 
     fn run_script(&self, args: &[&str]) -> Result<String, String> {
-        let python = paths::find_python()
-            .ok_or_else(|| "Python not found. Install Python 3.8+ and add to PATH.".to_string())?;
+        let python = paths::find_python().ok_or_else(|| {
+            let hint = if cfg!(target_os = "windows") {
+                "Install Python from python.org and check 'Add to PATH', or install via Microsoft Store."
+            } else {
+                "Install python3 via your package manager."
+            };
+            format!("Python not found. {}", hint)
+        })?;
 
-        let script = self.script_path();
+        // Warn if yt-dlp not installed
+        if !paths::find_ytdlp_installed(&python) {
+            return Err(format!(
+                "yt-dlp not installed in {}.\nRun: {} -m pip install yt-dlp",
+                python, python
+            ));
+        }
 
-        log::info!("Running: {} {} {}", python, script, args.join(" "));
+        let script = Self::script_path()?;
+        log::info!("yt-dlp: {} {} {}", python, script, args.join(" "));
 
-        let output = std::process::Command::new(&python)
+        let mut cmd = std::process::Command::new(&python);
+        paths::no_console(&mut cmd);
+        let output = cmd
             .arg(&script)
             .args(args)
             .env("PYTHONUNBUFFERED", "1")
             .output()
-            .map_err(|e| format!("Failed to run Python ({}): {}", python, e))?;
+            .map_err(|e| format!("Failed to run {}: {}", python, e))?;
 
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if !stderr.is_empty() {
-            log::warn!("yt-dlp stderr: {}", stderr);
-        }
-
         if !output.status.success() {
+            let code = output.status.code().unwrap_or(-1);
+            log::error!("yt-dlp exited {} stderr={}", code, stderr);
             return Err(format!(
-                "yt-dlp bridge exited with code {}: {}",
-                output.status.code().unwrap_or(-1),
+                "yt-dlp failed (exit {}): {}",
+                code,
                 stderr.chars().take(500).collect::<String>()
             ));
         }
 
-        let stdout = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         if stdout.trim().is_empty() {
-            return Err("yt-dlp bridge returned empty output".to_string());
+            return Err("yt-dlp returned empty output".into());
         }
-
         Ok(stdout)
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<YTMusicSearchResult>, String> {
         let out = self.run_script(&["search", query])?;
-        let parsed: YTSearchResponse = serde_json::from_str(&out).map_err(|e| {
-            log::error!("Failed to parse search output: {}", &out.chars().take(200).collect::<String>());
-            format!("Failed to parse yt-dlp output: {}", e)
-        })?;
+        let parsed: YTSearchResponse = serde_json::from_str(&out)
+            .map_err(|e| format!("Failed to parse response: {} (output was: {})", e, &out.chars().take(200).collect::<String>()))?;
         if let Some(err) = parsed.error {
             return Err(err);
         }
@@ -114,10 +121,8 @@ impl YTMusicClient {
 
     pub fn resolve_stream(&self, video_id: &str) -> Result<YTStreamResponse, String> {
         let out = self.run_script(&["stream", video_id])?;
-        let parsed: YTStreamResponse = serde_json::from_str(&out).map_err(|e| {
-            log::error!("Failed to parse stream output: {}", &out.chars().take(200).collect::<String>());
-            format!("Failed to parse yt-dlp output: {}", e)
-        })?;
+        let parsed: YTStreamResponse = serde_json::from_str(&out)
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
         if let Some(err) = parsed.error {
             return Err(err);
         }

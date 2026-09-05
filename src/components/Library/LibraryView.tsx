@@ -16,23 +16,32 @@ function formatDuration(secs: number): string {
 }
 
 export default function LibraryView() {
-  const { libraryView, setLibraryView, setQueue } = usePlayerStore();
+  const { libraryView, setLibraryView, setPlayback } = usePlayerStore();
   const { tracks, albums, artists, folders } = useLibraryStore();
   const [scanDir, setScanDir] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [playError, setPlayError] = useState('');
 
   const handleScan = async () => {
     if (!scanDir) return;
     setScanning(true);
     try {
       await scanLocalFiles(scanDir);
-    } catch (e) {}
+    } catch (e: any) {
+      setPlayError(e.toString());
+    }
     setScanning(false);
   };
 
   const playTrackFromLib = async (track: Track) => {
-    const st = await playTrack(track);
-    usePlayerStore.getState().setPlayback(st);
+    setPlayError('');
+    try {
+      const st = await playTrack(track);
+      setPlayback(st);
+    } catch (e: any) {
+      console.error('Play error:', e);
+      setPlayError(`Failed to play "${track.title}": ${e}`);
+    }
   };
 
   return (
@@ -69,6 +78,13 @@ export default function LibraryView() {
         </button>
         <span className="font-mono text-[10px] text-gray-600">{tracks.length} tracks</span>
       </div>
+
+      {/* Error banner */}
+      {playError && (
+        <div className="px-4 py-2 bg-red-900/30 border-b border-red-800 font-mono text-[10px] text-red-400">
+          {playError}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">

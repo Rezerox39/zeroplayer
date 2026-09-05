@@ -1,4 +1,5 @@
 use super::{YTMusicClient, YTMusicSearchResult};
+use crate::config::paths;
 use crate::library::Track;
 
 #[tauri::command]
@@ -16,13 +17,18 @@ pub async fn ytmusic_get_stream_url(video_id: String) -> Result<String, String> 
 
 #[tauri::command]
 pub async fn ytmusic_get_lyrics(video_id: String) -> Result<Option<String>, String> {
-    // Use a dedicated script call for lyrics
-    let output = std::process::Command::new("python3")
-        .arg("python/download.py")
+    let python = paths::find_python()
+        .ok_or_else(|| "Python not found".to_string())?;
+    let script = paths::resolve_resource_path("python/download.py");
+
+    let mut cmd = std::process::Command::new(&python);
+    paths::no_console(&mut cmd);
+    let output = cmd
+        .arg(&script)
         .args(["lyrics", &video_id])
         .env("PYTHONUNBUFFERED", "1")
         .output()
-        .map_err(|e| format!("Failed to run yt-dlp bridge: {}", e))?;
+        .map_err(|e| format!("Failed to run Python: {}", e))?;
 
     let out = String::from_utf8_lossy(&output.stdout);
     let trimmed = out.trim();

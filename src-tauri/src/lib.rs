@@ -12,8 +12,8 @@ use library::LibraryManager;
 use queue::QueueManager;
 use stats::StatsTracker;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tauri::Manager;
+use tokio::sync::RwLock;
 
 pub struct AppState {
     pub config: RwLock<AppConfig>,
@@ -43,7 +43,7 @@ pub fn run() {
             );
             let queue = Arc::new(RwLock::new(QueueManager::new()));
             let stats = Arc::new(StatsTracker::new(&db_path).expect("Failed to init stats DB"));
-            let player = Arc::new(AudioState::new());
+            let player = AudioState::new(); // returns Arc<AudioState>
 
             let state = AppState {
                 config: RwLock::new(config),
