@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
-import { fetchLyrics, setSpeed as cmdSetSpeed } from '../../lib/tauri';
+import { fetchLyrics, setSpeed as cmdSetSpeed, fileUrl } from '../../lib/tauri';
 import LyricDisplay from '../Lyrics/LyricDisplay';
 
 function formatTime(secs: number): string {
@@ -28,13 +28,15 @@ export default function FullPlayer() {
     }
   }, [track?.id]);
 
+  const coverSrc = fileUrl(track?.cover_path);
+
   return (
     <div className="h-full w-full flex bg-black-pure">
       {/* Left: album art + track info */}
       <div className="w-[42%] min-w-[380px] flex flex-col items-center justify-center gap-6 p-8">
-        {track?.cover_path ? (
+        {coverSrc ? (
           <img
-            src={`asset://localhost/${track.cover_path}`}
+            src={coverSrc}
             alt=""
             className="w-[320px] h-[320px] object-cover border border-surface-2 shadow-2xl shadow-black"
           />

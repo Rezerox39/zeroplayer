@@ -30,6 +30,7 @@ enum AudioCommand {
     Resume,
     Stop,
     SetVolume(f32),
+    Seek(f64),
 }
 
 pub struct AudioState {
@@ -104,6 +105,18 @@ impl AudioState {
         let v = v.clamp(0.0, 1.0);
         self.volume.store(v.to_bits(), Ordering::Relaxed);
         let _ = self.cmd_tx.send(AudioCommand::SetVolume(v));
+    }
+
+    pub fn seek(&self, pos: f64) {
+        *self.position.lock().unwrap() = pos.max(0.0);
+        // Note: rodio doesn't support seeking mid-stream; HTML5 Audio handles real seek.
+        // If playback hasn't started, update the base position.
+        let _ = self.cmd_tx.send(AudioCommand::Seek(pos.max(0.0)));
+    }
+
+    pub fn set_speed(&self, s: f32) {
+        let s = if s <= 0.0 { 1.0 } else { s };
+        self.speed.store(s.to_bits(), Ordering::Relaxed);
     }
 
     pub fn state(&self) -> PlaybackState {
@@ -227,6 +240,11 @@ fn run_audio_loop(cmd_rx: mpsc::Receiver<AudioCommand>, state: Arc<AudioState>) 
                     if let Some(s) = &sink {
                         s.set_volume(v);
                     }
+                }
+                AudioCommand::Seek(pos) => {
+                    base_position = pos;
+                    start_instant = Some(Instant::now());
+                    *state.position.lock().unwrap() = pos;
                 }
             },
             Err(mpsc::TryRecvError::Empty) => {}

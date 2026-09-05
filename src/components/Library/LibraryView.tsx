@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useLibraryStore } from '../../stores/libraryStore';
-import { cmdAddToQueue, playTrack, scanLocalFiles } from '../../lib/tauri';
+import { cmdAddToQueue, scanLocalFiles } from '../../lib/tauri';
+import { playTrackAndSet } from '../../lib/player';
 import type { Track, Album, Artist, Folder, LibraryTab } from '../../types';
 
 const TABS: LibraryTab[] = ['tracks', 'albums', 'artists', 'folders', 'playlists'];
@@ -16,7 +17,7 @@ function formatDuration(secs: number): string {
 }
 
 export default function LibraryView() {
-  const { libraryView, setLibraryView, setPlayback } = usePlayerStore();
+  const { libraryView, setLibraryView } = usePlayerStore();
   const { tracks, albums, artists, folders } = useLibraryStore();
   const [scanDir, setScanDir] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -36,8 +37,7 @@ export default function LibraryView() {
   const playTrackFromLib = async (track: Track) => {
     setPlayError('');
     try {
-      const st = await playTrack(track);
-      setPlayback(st);
+      await playTrackAndSet(track);
     } catch (e: any) {
       console.error('Play error:', e);
       setPlayError(`Failed to play "${track.title}": ${e}`);

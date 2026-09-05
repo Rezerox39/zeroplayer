@@ -23,6 +23,21 @@ pub struct AppState {
     pub player: Arc<AudioState>,
 }
 
+/// Resolve a local file path to a URL the frontend can play.
+/// Returns a file:// URL for local files.
+#[tauri::command]
+fn resolve_file_url(path: String) -> Result<String, String> {
+    let p = std::path::PathBuf::from(&path);
+    if !p.exists() {
+        return Err(format!("File not found: {}", path));
+    }
+    // Use convertFileSrc-compatible format: asset://localhost/<encoded-path>
+    // The frontend will use convertFileSrc() which does this encoding.
+    // But for simplicity, just return the absolute path.
+    // The frontend can use convertFileSrc() from @tauri-apps/api/core.
+    Ok(path)
+}
+
 pub fn run() {
     env_logger::init();
 
@@ -36,6 +51,12 @@ pub fn run() {
             std::fs::create_dir_all(&app_dir).ok();
             std::env::set_var("APP_DIR", app_dir.display().to_string());
 
+            // Set RESOURCE_DIR so scripts can be found at runtime
+            if let Ok(res_dir) = app.path().resource_dir() {
+                std::env::set_var("RESOURCE_DIR", res_dir.display().to_string());
+                log::info!("RESOURCE_DIR = {}", res_dir.display());
+            }
+
             let config = AppConfig::load(&app_dir);
             let db_path = app_dir.join("library.db");
             let library = Arc::new(
@@ -43,7 +64,7 @@ pub fn run() {
             );
             let queue = Arc::new(RwLock::new(QueueManager::new()));
             let stats = Arc::new(StatsTracker::new(&db_path).expect("Failed to init stats DB"));
-            let player = AudioState::new(); // returns Arc<AudioState>
+            let player = AudioState::new();
 
             let state = AppState {
                 config: RwLock::new(config),
@@ -66,6 +87,8 @@ pub fn run() {
             audio::commands::set_volume,
             audio::commands::set_speed,
             audio::commands::get_playback_state,
+            // File resolution
+            resolve_file_url,
             // Queue commands
             queue::commands::add_to_queue,
             queue::commands::remove_from_queue,

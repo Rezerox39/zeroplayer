@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import type {
   PlaybackState,
   Track,
@@ -13,8 +14,17 @@ import type {
   RepeatMode,
 } from '../types';
 
-// Player
-export const playTrack = (track: Track): Promise<PlaybackState> => invoke('play', { track });
+export { convertFileSrc };
+
+/** Convert a local file path to a URL the webview can play/display. */
+export function fileUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined;
+  return convertFileSrc(path);
+}
+
+// Player — returns PlayResult with state + file_path for frontend audio
+export const playTrack = (track: Track): Promise<{ state: PlaybackState; file_path?: string }> =>
+  invoke('play', { track }) as any;
 export const pausePlayback = (): Promise<void> => invoke('pause');
 export const resumePlayback = (): Promise<void> => invoke('resume');
 export const stopPlayback = (): Promise<void> => invoke('stop');
@@ -80,8 +90,7 @@ export const fetchLyrics = (title: string, artist: string): Promise<LyricsResult
   invoke('fetch_lyrics', { title, artist });
 
 // Stats
-export const getTrackStats = (trackId: string): Promise<TrackStats | null> =>
-  invoke('get_track_stats', { trackId });
+export const getTrackStats = (trackId: string): Promise<TrackStats | null> => invoke('get_track_stats', { trackId });
 export const getListeningStats = (): Promise<ListeningStats> => invoke('get_listening_stats');
 
 // Config

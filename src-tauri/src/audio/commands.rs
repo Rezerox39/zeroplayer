@@ -3,28 +3,41 @@ use crate::library::Track;
 use crate::AppState;
 use tauri::State;
 
+/// Return value for the play command — includes the resolved file URL
+/// so the frontend HTML5 Audio can play it directly.
+#[derive(serde::Serialize)]
+pub struct PlayResult {
+    #[serde(flatten)]
+    pub state: PlaybackState,
+    /// Resolved local file path (for frontend HTML5 Audio playback)
+    pub file_path: Option<String>,
+}
+
 #[tauri::command]
-pub async fn play(state: State<'_, AppState>, track: Track) -> Result<PlaybackState, String> {
-    // For YouTube Music tracks, resolve and download audio via yt-dlp to a temp file
-    // before handing it to the rodio-based audio thread.
+pub async fn play(state: State<'_, AppState>, track: Track) -> Result<PlayResult, String> {
     let effective_track = if track.source == "youtube_music" {
         let video_id = track
             .source_id
             .as_ref()
             .ok_or_else(|| "No video ID for YouTube Music track")?;
         let client = crate::sources::ytmusic::YTMusicClient::new();
-        let file_path = client
+        let path = client
             .download_to_temp(video_id)
             .map_err(|e| format!("Failed to download YouTube audio: {}", e))?;
         let mut t = track;
-        t.file_path = Some(file_path);
+        t.file_path = Some(path.clone());
         t
     } else {
         track
     };
 
     state.player.play_file(&effective_track)?;
-    Ok(state.player.state())
+    let player_state = state.player.state();
+
+    Ok(PlayResult {
+        state: player_state,
+        file_path: effective_track.file_path.clone(),
+    })
 }
 
 #[tauri::command]
@@ -46,8 +59,8 @@ pub async fn stop(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn seek(_state: State<'_, AppState>, position_secs: f64) -> Result<(), String> {
-    let _ = position_secs;
+pub async fn seek(state: State<'_, AppState>, position_secs: f64) -> Result<(), String> {
+    state.player.seek(position_secs);
     Ok(())
 }
 
@@ -58,8 +71,8 @@ pub async fn set_volume(state: State<'_, AppState>, volume: f32) -> Result<(), S
 }
 
 #[tauri::command]
-pub async fn set_speed(_state: State<'_, AppState>, speed: f32) -> Result<(), String> {
-    let _ = speed;
+pub async fn set_speed(state: State<'_, AppState>, speed: f32) -> Result<(), String> {
+    state.player.set_speed(speed);
     Ok(())
 }
 

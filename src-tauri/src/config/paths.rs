@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::process::Command;
 
 /// Configure a Command to not open a console window on Windows.
-/// This prevents the "cmd flashes" when running python/yt-dlp.
 pub fn no_console(cmd: &mut Command) -> &mut Command {
     #[cfg(target_os = "windows")]
     {
@@ -15,8 +14,6 @@ pub fn no_console(cmd: &mut Command) -> &mut Command {
 
 /// Find the Python executable on the current platform.
 pub fn find_python() -> Option<String> {
-    // On Windows: try py launcher, python, python3
-    // On Linux/macOS: python3 first, then python
     let candidates: &[&str] = if cfg!(target_os = "windows") {
         &["py", "python", "python3"]
     } else {
@@ -47,8 +44,17 @@ pub fn find_ytdlp_installed(python: &str) -> bool {
 }
 
 /// Resolve a script path relative to the app's resource directory.
+/// Uses the RESOURCE_DIR env var set by Tauri setup, then falls back to exe-relative paths.
 pub fn resolve_resource_path(relative: &str) -> PathBuf {
-    // 1. Tauri resource directory (bundled with app)
+    // 1. RESOURCE_DIR env var (set by Tauri setup)
+    if let Ok(res_dir) = std::env::var("RESOURCE_DIR") {
+        let path = PathBuf::from(res_dir).join(relative);
+        if path.exists() {
+            return path;
+        }
+    }
+
+    // 2. Tauri resource directory (bundled with app)
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let candidates = [
@@ -64,15 +70,20 @@ pub fn resolve_resource_path(relative: &str) -> PathBuf {
         }
     }
 
-    // 2. Current working directory (dev mode)
+    // 3. Current working directory (dev mode)
     if let Ok(cwd) = std::env::current_dir() {
         let full = cwd.join(relative);
         if full.exists() {
             return full;
         }
+        // Also try parent of src-tauri (where python/ lives)
+        let parent = cwd.parent().unwrap_or(&cwd).join(relative);
+        if parent.exists() {
+            return parent;
+        }
     }
 
-    // 3. User's home directory
+    // 4. User's home directory
     if let Some(home) = dirs::home_dir() {
         let full = home.join(relative);
         if full.exists() {
@@ -80,7 +91,7 @@ pub fn resolve_resource_path(relative: &str) -> PathBuf {
         }
     }
 
-    // Fallback: return as-is
+    // Fallback: return as-is (caller should check .exists())
     PathBuf::from(relative)
 }
 

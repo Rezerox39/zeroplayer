@@ -12,9 +12,12 @@ interface PlayerStore {
   libraryView: 'tracks' | 'albums' | 'artists' | 'folders' | 'playlists';
   searchQuery: string;
   searchResults: Track[];
+  /** Current playable src URL for HTML5 Audio */
+  currentSrc: string | null;
 
   // Player actions
   setPlayback: (state: PlaybackState) => void;
+  setCurrentSrc: (src: string | null) => void;
   updatePosition: (pos: number) => void;
   setQueue: (tracks: Track[]) => void;
   addToQueue: (track: Track) => void;
@@ -47,8 +50,10 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   libraryView: 'tracks',
   searchQuery: '',
   searchResults: [],
+  currentSrc: null,
 
   setPlayback: (state) => set({ playback: state }),
+  setCurrentSrc: (src) => set({ currentSrc: src }),
   updatePosition: (pos) =>
     set((s) => ({ playback: { ...s.playback, position_secs: pos } })),
   setQueue: (tracks) => set({ queue: tracks }),

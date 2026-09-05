@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
-import { searchLibrary, ytmusicSearchAsTracks, jellyfinSearch, playTrack } from '../../lib/tauri';
+import { searchLibrary, ytmusicSearchAsTracks, jellyfinSearch } from '../../lib/tauri';
+import { playTrackAndSet } from '../../lib/player';
 import type { Track } from '../../types';
 
 type SearchSource = 'all' | 'local' | 'jellyfin' | 'yt-music';
@@ -13,7 +14,6 @@ const SOURCES: { id: SearchSource; label: string }[] = [
 ];
 
 export default function SearchView() {
-  const { setPlayback } = usePlayerStore();
   const [query, setQuery] = useState('');
   const [source, setSource] = useState<SearchSource>('all');
   const [results, setResults] = useState<Track[]>([]);
@@ -54,8 +54,7 @@ export default function SearchView() {
     setPlayingId(track.id);
     setError('');
     try {
-      const st = await playTrack(track);
-      setPlayback(st);
+      await playTrackAndSet(track);
     } catch (e: any) {
       setError(`Failed to play "${track.title}": ${e}`);
     } finally {
