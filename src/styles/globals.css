@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #000000;
+    color: #e0e0e0;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #000000;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #333333;
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #444444;
+  }
+}
+
+@layer components {
+  .accent-text {
+    color: var(--accent);
+  }
+  .accent-bg {
+    background-color: var(--accent);
+  }
+  .accent-border {
+    border-color: var(--accent);
+  }
+  .accent-hover:hover {
+    color: var(--accent);
+  }
+  .accent-hover-bg:hover {
+    background-color: var(--accent);
+  }
+  .surface-1 { background-color: #0a0a0a; }
+  .surface-2 { background-color: #111111; }
+  .surface-3 { background-color: #1a1a1a; }
+  .surface-4 { background-color: #222222; }
+  .divider { border-color: #1a1a1a; }
+}
+
+:root {
+  --accent: #00e5ff;
+}
+
+@layer components {
+  .settings-btn {
+    @apply font-mono text-[10px] px-4 py-2 border border-surface-3 text-gray-400 hover:text-white hover:border-[var(--accent)] transition-colors;
+  }
+}

@@ -1,0 +1,44 @@
+[package]
+name = "zeroplayer"
+version = "1.0.0"
+description = "Terminal-inspired desktop music player"
+authors = ["ZeroPlayer"]
+license = "MIT"
+edition = "2021"
+
+[lib]
+name = "zeroplayer_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tokio = { version = "1", features = ["full"] }
+rodio = { version = "0.19", features = ["symphonia"] }
+lofty = "0.21"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+hex = "0.4"
+log = "0.4"
+env_logger = "0.11"
+thiserror = "2"
+glob = "0.3"
+walkdir = "2"
+futures = "0.3"
+tokio-util = "0.7"
+bytes = "1"
+image = { version = "0.25", features = ["png", "jpeg"] }
+base64 = "0.22"
+urlencoding = "2"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
