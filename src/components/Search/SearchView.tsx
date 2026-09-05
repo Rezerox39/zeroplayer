@@ -19,6 +19,7 @@ export default function SearchView() {
   const [results, setResults] = useState<Track[]>([]);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
+  const [playingId, setPlayingId] = useState('');
 
   const runSearch = async () => {
     if (!query.trim()) return;
@@ -50,11 +51,15 @@ export default function SearchView() {
   };
 
   const handlePlay = async (track: Track) => {
+    setPlayingId(track.id);
+    setError('');
     try {
       const st = await playTrack(track);
       setPlayback(st);
     } catch (e: any) {
       setError(`Failed to play "${track.title}": ${e}`);
+    } finally {
+      setPlayingId('');
     }
   };
 
@@ -119,6 +124,11 @@ export default function SearchView() {
             {track.duration && (
               <span className="font-mono text-[10px] text-gray-600">
                 {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
+              </span>
+            )}
+            {playingId === track.id && (
+              <span className="font-mono text-[10px] text-[var(--accent)] animate-pulse">
+                loading...
               </span>
             )}
           </div>

@@ -5,39 +5,22 @@ use tauri::State;
 
 #[tauri::command]
 pub async fn play(state: State<'_, AppState>, track: Track) -> Result<PlaybackState, String> {
-    let effective_track = match track.source.as_str() {
-        "youtube_music" => {
-            let video_id = track
-                .source_id
-                .as_ref()
-                .ok_or_else(|| "No video ID for YouTube Music track")?;
-            let client = crate::sources::ytmusic::YTMusicClient::new();
-            let file_path = client
-                .download_to_temp(video_id)
-                .map_err(|e| format!("Failed to download YouTube audio: {}", e))?;
-            let mut t = track;
-            t.file_path = Some(file_path);
-            t
-        }
-        "telegram" => {
-            let parts: Vec<&str> = track.id.split('_').collect();
-            let message_id: i64 = parts
-                .get(1)
-                .and_then(|s| s.parse().ok())
-                .ok_or_else(|| "Invalid Telegram message ID")?;
-            let channel_id: i64 = parts
-                .get(2)
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
-            let client = crate::sources::telegram::TelegramClient::new();
-            let file_path = client
-                .download_audio(message_id, channel_id)
-                .map_err(|e| format!("Failed to download Telegram audio: {}", e))?;
-            let mut t = track;
-            t.file_path = Some(file_path);
-            t
-        }
-        _ => track,
+    // For YouTube Music tracks, resolve and download audio via yt-dlp to a temp file
+    // before handing it to the rodio-based audio thread.
+    let effective_track = if track.source == "youtube_music" {
+        let video_id = track
+            .source_id
+            .as_ref()
+            .ok_or_else(|| "No video ID for YouTube Music track")?;
+        let client = crate::sources::ytmusic::YTMusicClient::new();
+        let file_path = client
+            .download_to_temp(video_id)
+            .map_err(|e| format!("Failed to download YouTube audio: {}", e))?;
+        let mut t = track;
+        t.file_path = Some(file_path);
+        t
+    } else {
+        track
     };
 
     state.player.play_file(&effective_track)?;
