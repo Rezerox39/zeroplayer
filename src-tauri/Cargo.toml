@@ -1,6 +1,6 @@
 [package]
 name = "zeroplayer"
-version = "1.0.3"
+version = "1.0.4"
 description = "Terminal-inspired desktop music player"
 authors = ["ZeroPlayer"]
 license = "MIT"
