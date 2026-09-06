@@ -99,6 +99,7 @@ export interface AppConfig {
   telegram?: { bot_token: string; channels: string[] };
   lyrics: { provider: string; genius_token?: string };
   local_dirs: string[];
+  setup_done?: boolean;
 }
 
 export type ViewTab = 'player' | 'library' | 'search' | 'queue' | 'stats' | 'settings';

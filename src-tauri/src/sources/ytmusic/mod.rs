@@ -164,8 +164,8 @@ impl YTMusicClient {
         }
     }
 
-    pub fn download_to_temp(&self, video_id: &str) -> Result<String, String> {
-        let out = self.run_script(&["download", video_id])?;
+    pub fn download_to_dir(&self, video_id: &str, out_dir: &str) -> Result<String, String> {
+        let out = self.run_script(&["download", video_id, out_dir])?;
         let json = Self::extract_json(&out)
             .map_err(|e| format!("Failed to parse download response: {}", e))?;
         let parsed: serde_json::Value = serde_json::from_str(&json)
@@ -177,6 +177,24 @@ impl YTMusicClient {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
             .ok_or_else(|| "No file path in download response".to_string())
+    }
+
+    /// Look for an already-downloaded copy of the video in `out_dir`
+    /// (downloads are named `<video_id>.<ext>`), so repeated plays reuse the
+    /// local file instead of re-downloading.
+    pub fn find_cached(&self, video_id: &str, out_dir: &str) -> Option<String> {
+        let dir = std::path::Path::new(out_dir);
+        if !dir.is_dir() {
+            return None;
+        }
+        let prefix = format!("{}.", video_id);
+        for entry in std::fs::read_dir(dir).ok()?.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with(&prefix) && entry.path().is_file() {
+                return Some(entry.path().display().to_string());
+            }
+        }
+        None
     }
 
     pub fn to_track_from_download(&self, result: YTMusicSearchResult, file_path: String) -> Track {

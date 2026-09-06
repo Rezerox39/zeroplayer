@@ -206,6 +206,94 @@ impl LibraryManager {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    pub fn create_playlist(&self, name: &str) -> rusqlite::Result<Playlist> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO playlists (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
+            rusqlite::params![id, name, now],
+        )?;
+        Ok(Playlist {
+            id,
+            name: name.to_string(),
+            created_at: Some(now.clone()),
+            updated_at: Some(now),
+        })
+    }
+
+    pub fn delete_playlist(&self, playlist_id: &str) -> rusqlite::Result<()> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        conn.execute("DELETE FROM playlist_tracks WHERE playlist_id = ?1", [playlist_id])?;
+        conn.execute("DELETE FROM playlists WHERE id = ?1", [playlist_id])?;
+        Ok(())
+    }
+
+    pub fn add_to_playlist(&self, playlist_id: &str, track: &Track) -> rusqlite::Result<()> {
+        // Ensure the track exists so the FK-style join always resolves
+        self.upsert_track(track)?;
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let position: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id = ?1",
+            [playlist_id],
+            |row| row.get(0),
+        )?;
+        conn.execute(
+            "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position) VALUES (?1, ?2, ?3)",
+            rusqlite::params![playlist_id, track.id, position],
+        )?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
+            rusqlite::params![now, playlist_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_from_playlist(&self, playlist_id: &str, track_id: &str) -> rusqlite::Result<()> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        conn.execute(
+            "DELETE FROM playlist_tracks WHERE playlist_id = ?1 AND track_id = ?2",
+            rusqlite::params![playlist_id, track_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_playlist_tracks(&self, playlist_id: &str) -> rusqlite::Result<Vec<Track>> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let mut stmt = conn.prepare(
+            r#"SELECT t.id, t.title, t.artist, t.album, t.album_artist, t.genre, t.year,
+                      t.track_number, t.duration, t.file_path, t.source, t.source_id,
+                      t.cover_path, t.play_count, t.last_played_at, t.created_at, t.updated_at
+               FROM playlist_tracks pt
+               JOIN tracks t ON t.id = pt.track_id
+               WHERE pt.playlist_id = ?1
+               ORDER BY pt.position"#,
+        )?;
+        let rows = stmt.query_map([playlist_id], |row| {
+            Ok(Track {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                album_artist: row.get(4)?,
+                genre: row.get(5)?,
+                year: row.get(6)?,
+                track_number: row.get(7)?,
+                duration: row.get(8)?,
+                file_path: row.get(9)?,
+                source: row.get(10)?,
+                source_id: row.get(11)?,
+                cover_path: row.get(12)?,
+                play_count: row.get(13)?,
+                last_played_at: row.get(14)?,
+                created_at: row.get(15)?,
+                updated_at: row.get(16)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
     pub fn search(&self, query: &str) -> rusqlite::Result<Vec<Track>> {
         let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
         let pattern = format!("%{}%", query);

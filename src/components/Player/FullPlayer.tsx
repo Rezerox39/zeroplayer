@@ -38,10 +38,16 @@ export default function FullPlayer() {
           <img
             src={coverSrc}
             alt=""
-            className="w-[320px] h-[320px] object-cover border border-surface-2 shadow-2xl shadow-black"
+            className={`w-[320px] h-[320px] object-cover border shadow-2xl shadow-black ${
+              playback.status === 'playing' ? 'border-[var(--accent)] accent-pulse' : 'border-surface-2'
+            }`}
           />
         ) : (
-          <div className="w-[320px] h-[320px] bg-surface-1 border border-surface-2 flex items-center justify-center">
+          <div
+            className={`w-[320px] h-[320px] bg-surface-1 border flex items-center justify-center ${
+              playback.status === 'playing' ? 'border-[var(--accent)] accent-pulse' : 'border-surface-2'
+            }`}
+          >
             <span className="font-mono text-[64px] text-gray-700">♫</span>
           </div>
         )}

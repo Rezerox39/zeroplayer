@@ -1,9 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useLibraryStore } from '../../stores/libraryStore';
-import { cmdAddToQueue, scanLocalFiles, fileUrl } from '../../lib/tauri';
+import {
+  cmdAddToQueue,
+  scanLocalFiles,
+  fileUrl,
+  getPlaylists,
+  createPlaylist,
+  deletePlaylist,
+  getPlaylistTracks,
+  importSpotifyPlaylist,
+  removeFromPlaylist,
+} from '../../lib/tauri';
 import { playTrackAndSet } from '../../lib/player';
-import type { Track, Album, Artist, Folder, LibraryTab } from '../../types';
+import type { Track, Album, Artist, Folder, LibraryTab, Playlist } from '../../types';
 
 const TABS: LibraryTab[] = ['tracks', 'albums', 'artists', 'folders', 'playlists'];
 
@@ -22,6 +32,90 @@ export default function LibraryView() {
   const [scanDir, setScanDir] = useState('');
   const [scanning, setScanning] = useState(false);
   const [playError, setPlayError] = useState('');
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
+  const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [spotifyUrl, setSpotifyUrl] = useState('');
+  const [playlistMsg, setPlaylistMsg] = useState('');
+  const [playlistBusy, setPlaylistBusy] = useState(false);
+
+  const refreshPlaylists = async () => {
+    try {
+      setPlaylists(await getPlaylists());
+    } catch (e: any) {
+      setPlaylistMsg(String(e));
+    }
+  };
+
+  useEffect(() => {
+    refreshPlaylists();
+  }, []);
+
+  const openPlaylist = async (id: string) => {
+    setSelectedPlaylistId(id);
+    try {
+      setPlaylistTracks(await getPlaylistTracks(id));
+    } catch (e: any) {
+      setPlaylistMsg(String(e));
+    }
+  };
+
+  const handleCreatePlaylist = async () => {
+    const name = newPlaylistName.trim();
+    if (!name) return;
+    setPlaylistBusy(true);
+    try {
+      await createPlaylist(name);
+      setNewPlaylistName('');
+      await refreshPlaylists();
+      setPlaylistMsg(`created "${name}"`);
+    } catch (e: any) {
+      setPlaylistMsg(String(e));
+    }
+    setPlaylistBusy(false);
+  };
+
+  const handleDeletePlaylist = async (id: string) => {
+    setPlaylistBusy(true);
+    try {
+      await deletePlaylist(id);
+      if (selectedPlaylistId === id) {
+        setSelectedPlaylistId(null);
+        setPlaylistTracks([]);
+      }
+      await refreshPlaylists();
+    } catch (e: any) {
+      setPlaylistMsg(String(e));
+    }
+    setPlaylistBusy(false);
+  };
+
+  const handleImportSpotify = async () => {
+    const url = spotifyUrl.trim();
+    if (!url) return;
+    setPlaylistBusy(true);
+    setPlaylistMsg('importing spotify playlist… (matches each track on youtube)');
+    try {
+      const result = await importSpotifyPlaylist(url);
+      setSpotifyUrl('');
+      setPlaylistMsg(`imported ${result.imported} of ${result.total} tracks → "${result.name}"`);
+      await refreshPlaylists();
+    } catch (e: any) {
+      setPlaylistMsg(String(e));
+    }
+    setPlaylistBusy(false);
+  };
+
+  const handleRemoveFromPlaylist = async (trackId: string) => {
+    if (!selectedPlaylistId) return;
+    try {
+      await removeFromPlaylist(selectedPlaylistId, trackId);
+      setPlaylistTracks((prev) => prev.filter((t) => t.id !== trackId));
+    } catch (e: any) {
+      setPlaylistMsg(String(e));
+    }
+  };
 
   const handleScan = async () => {
     if (!scanDir) return;
@@ -196,8 +290,126 @@ export default function LibraryView() {
         )}
 
         {libraryView === 'playlists' && (
-          <div className="p-12 text-center font-mono text-xs text-gray-600">
-            playlist support coming soon
+          <div className="flex h-full">
+            {/* Playlist list */}
+            <div className="w-72 border-r border-surface-2 flex flex-col">
+              <div className="p-3 border-b border-surface-2 space-y-2">
+                <input
+                  value={newPlaylistName}
+                  onChange={(e) => setNewPlaylistName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreatePlaylist(); }}
+                  placeholder="new playlist name"
+                  className="w-full bg-surface-2 text-gray-300 font-mono text-xs px-3 py-1.5 border border-surface-3 focus:border-[var(--accent)] outline-none"
+                />
+                <button
+                  onClick={handleCreatePlaylist}
+                  disabled={playlistBusy}
+                  className="w-full font-mono text-[10px] px-3 py-1.5 border border-surface-3 text-gray-400 hover:text-white hover:border-[var(--accent)] disabled:opacity-50"
+                >
+                  + create
+                </button>
+                <input
+                  value={spotifyUrl}
+                  onChange={(e) => setSpotifyUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleImportSpotify(); }}
+                  placeholder="spotify playlist url…"
+                  className="w-full bg-surface-2 text-gray-300 font-mono text-xs px-3 py-1.5 border border-surface-3 focus:border-[var(--accent)] outline-none"
+                />
+                <button
+                  onClick={handleImportSpotify}
+                  disabled={playlistBusy}
+                  className="w-full font-mono text-[10px] px-3 py-1.5 border border-surface-3 text-[var(--accent)] hover:bg-[var(--accent)] hover:text-black disabled:opacity-50"
+                >
+                  import spotify
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {playlists.map((pl) => (
+                  <div
+                    key={pl.id}
+                    onClick={() => openPlaylist(pl.id)}
+                    className={`flex items-center justify-between px-4 py-2.5 cursor-pointer border-l-2 transition-colors ${
+                      selectedPlaylistId === pl.id
+                        ? 'border-[var(--accent)] bg-surface-1'
+                        : 'border-transparent hover:bg-surface-1'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-mono text-xs text-gray-200 truncate">{pl.name}</div>
+                      <div className="font-mono text-[10px] text-gray-600">{pl.created_at?.slice(0, 10) || ''}</div>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeletePlaylist(pl.id); }}
+                      className="text-[10px] text-gray-600 hover:text-red-500 px-1.5"
+                      title="delete playlist"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {playlists.length === 0 && (
+                  <div className="p-6 text-center font-mono text-[10px] text-gray-600">
+                    no playlists yet
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Playlist tracks */}
+            <div className="flex-1 overflow-y-auto">
+              {playlistMsg && (
+                <div className="px-4 py-2 bg-surface-1 border-b border-surface-2 font-mono text-[10px] text-gray-400">
+                  {playlistMsg}
+                </div>
+              )}
+              {selectedPlaylistId ? (
+                playlistTracks.length === 0 ? (
+                  <div className="p-12 text-center font-mono text-xs text-gray-600">
+                    playlist is empty
+                  </div>
+                ) : (
+                  <div className="divide-y divide-surface-2">
+                    {playlistTracks.map((track, i) => (
+                      <div
+                        key={track.id}
+                        onClick={() => playTrackFromLib(track)}
+                        className="flex items-center gap-4 px-5 py-2.5 cursor-pointer hover:bg-surface-1 transition-colors"
+                      >
+                        <span className="font-mono text-[10px] text-gray-600 w-6 text-right">{i + 1}</span>
+                        {track.cover_path ? (
+                          <img src={fileUrl(track.cover_path)} alt="" className="w-10 h-10 rounded-sm object-cover border border-surface-3" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-sm bg-surface-2 border border-surface-3 flex items-center justify-center font-mono text-sm text-gray-700">♫</div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-mono text-xs text-gray-200 truncate">{track.title}</div>
+                          <div className="font-mono text-[10px] text-gray-500 truncate">{track.artist || '—'}</div>
+                        </div>
+                        <span className="font-mono text-[10px] text-gray-600">{track.source}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); cmdAddToQueue(track); }}
+                          className="font-mono text-[10px] text-gray-600 hover:text-[var(--accent)] px-2 py-0.5 border border-surface-3"
+                          title="Add to queue"
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRemoveFromPlaylist(track.id); }}
+                          className="font-mono text-[10px] text-gray-600 hover:text-red-500 px-2 py-0.5 border border-surface-3"
+                          title="Remove from playlist"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="p-12 text-center font-mono text-xs text-gray-600">
+                  select a playlist — or create / import one on the left
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

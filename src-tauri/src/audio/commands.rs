@@ -19,10 +19,16 @@ pub async fn play(state: State<'_, AppState>, track: Track) -> Result<PlayResult
             .source_id
             .as_ref()
             .ok_or_else(|| "No video ID for YouTube Music track")?;
+        let app_dir = std::env::var("APP_DIR").unwrap_or_else(|_| ".".to_string());
+        let dl_dir = std::path::PathBuf::from(&app_dir).join("downloads");
+        std::fs::create_dir_all(&dl_dir).ok();
         let client = crate::sources::ytmusic::YTMusicClient::new();
-        let path = client
-            .download_to_temp(video_id)
-            .map_err(|e| format!("Failed to download YouTube audio: {}", e))?;
+        let path = match client.find_cached(video_id, &dl_dir.display().to_string()) {
+            Some(cached) => cached,
+            None => client
+                .download_to_dir(video_id, &dl_dir.display().to_string())
+                .map_err(|e| format!("Failed to download YouTube audio: {}", e))?,
+        };
         let mut t = track;
         t.file_path = Some(path.clone());
         t

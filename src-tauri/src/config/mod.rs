@@ -13,6 +13,8 @@ pub struct AppConfig {
     pub telegram: Option<TelegramConfig>,
     pub lyrics: LyricsConfig,
     pub local_dirs: Vec<String>,
+    #[serde(default)]
+    pub setup_done: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +97,7 @@ impl Default for AppConfig {
                 genius_token: None,
             },
             local_dirs: vec![],
+            setup_done: false,
         }
     }
 }

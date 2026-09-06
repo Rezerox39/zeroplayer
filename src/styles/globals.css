@@ -11,6 +11,7 @@
 
   body {
     font-family: 'Inter', sans-serif;
+    font-size: var(--font-size, 14px);
     background-color: #000000;
     color: #e0e0e0;
     overflow: hidden;
@@ -57,10 +58,46 @@
 
 :root {
   --accent: #00e5ff;
+  --font-size: 14px;
 }
 
 @layer components {
   .settings-btn {
     @apply font-mono text-[10px] px-4 py-2 border border-surface-3 text-gray-400 hover:text-white hover:border-[var(--accent)] transition-colors;
+  }
+
+  /* Cool animation: equalizer bars (ZMT "cols animation" vibe) */
+  .eq {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+  }
+  .eq-bar {
+    display: inline-block;
+    width: 3px;
+    height: 100%;
+    background-color: var(--accent);
+    animation: eq-bounce 1s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+  .eq-bar:nth-child(1) { animation-delay: 0s; }
+  .eq-bar:nth-child(2) { animation-delay: 0.2s; }
+  .eq-bar:nth-child(3) { animation-delay: 0.4s; }
+  .eq-bar:nth-child(4) { animation-delay: 0.1s; }
+  .eq-bar:nth-child(5) { animation-delay: 0.3s; }
+  .eq-static .eq-bar { animation: none; }
+
+  @keyframes eq-bounce {
+    0%, 100% { transform: scaleY(0.3); }
+    50% { transform: scaleY(1); }
+  }
+
+  .accent-pulse {
+    animation: accent-pulse 2s ease-in-out infinite;
+  }
+  @keyframes accent-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
   }
 }

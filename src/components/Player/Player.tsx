@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
-import { playTrack, pausePlayback, resumePlayback, cmdNextTrack, cmdPreviousTrack, setVolume as cmdSetVolume, fileUrl } from '../../lib/tauri';
+import {
+  playTrack,
+  pausePlayback,
+  resumePlayback,
+  cmdNextTrack,
+  cmdPreviousTrack,
+  cmdToggleShuffle,
+  downloadTrack,
+  setVolume as cmdSetVolume,
+  fileUrl,
+} from '../../lib/tauri';
 import type { Track } from '../../types';
 
 function formatTime(secs: number): string {
@@ -11,9 +21,11 @@ function formatTime(secs: number): string {
 }
 
 export default function Player() {
-  const { playback, setPlayback, setCurrentSrc, currentSrc } = usePlayerStore();
+  const { playback, setPlayback, setCurrentSrc, currentSrc, shuffled, setShuffled } = usePlayerStore();
   const [localPos, setLocalPos] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [dlState, setDlState] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
+  const [dlMsg, setDlMsg] = useState('');
   const audioRef = useRef<HTMLAudioElement>(null);
   const track = playback.current_track;
 
@@ -156,6 +168,31 @@ export default function Player() {
     }
   }, [playTrackFromInvoke]);
 
+  const handleToggleShuffle = useCallback(async () => {
+    try {
+      const on = await cmdToggleShuffle();
+      setShuffled(on);
+    } catch (e: any) {
+      console.error('Shuffle error:', e);
+    }
+  }, [setShuffled]);
+
+  const handleDownload = useCallback(async (t: Track | undefined) => {
+    if (!t) return;
+    setDlState('working');
+    setDlMsg('');
+    try {
+      const path = await downloadTrack(t);
+      setDlState('done');
+      setDlMsg(path);
+      setTimeout(() => setDlState('idle'), 4000);
+    } catch (e: any) {
+      setDlState('error');
+      setDlMsg(String(e));
+      setTimeout(() => setDlState('idle'), 5000);
+    }
+  }, []);
+
   // Seek by clicking on the progress bar
   const handleSeekStart = (e: React.MouseEvent<HTMLDivElement>) => {
     setDragging(true);
@@ -226,7 +263,14 @@ export default function Player() {
             </div>
           )}
           <div className="overflow-hidden">
-            <div className="font-mono text-xs text-gray-200 truncate">{track?.title || 'No track'}</div>
+            <div className="flex items-center gap-2">
+              {playback.status === 'playing' && (
+                <span className="eq" title="playing">
+                  <span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" /><span className="eq-bar" />
+                </span>
+              )}
+              <div className="font-mono text-xs text-gray-200 truncate">{track?.title || 'No track'}</div>
+            </div>
             <div className="font-mono text-[10px] text-gray-500 truncate">{track?.artist || ''}</div>
           </div>
         </div>
@@ -234,6 +278,13 @@ export default function Player() {
         {/* Controls + seek */}
         <div className="flex-1 flex flex-col items-center gap-1">
           <div className="flex items-center gap-5">
+            <button
+              onClick={handleToggleShuffle}
+              className={`transition-colors text-sm ${shuffled ? 'accent-text' : 'text-gray-400 hover:text-white'}`}
+              title="Shuffle"
+            >
+              ⤨
+            </button>
             <button onClick={handlePrev} className="text-gray-400 hover:text-white transition-colors text-sm" title="Previous">▮◄</button>
             <button
               onClick={handlePlayPause}
@@ -263,8 +314,16 @@ export default function Player() {
           </div>
         </div>
 
-        {/* Volume */}
-        <div className="w-40 flex items-center gap-3 justify-end">
+        {/* Download + Volume */}
+        <div className="w-52 flex items-center gap-3 justify-end">
+          <button
+            onClick={() => handleDownload(track)}
+            disabled={!track || dlState === 'working'}
+            className={`text-sm transition-colors disabled:opacity-40 ${dlState === 'error' ? 'text-red-500' : 'text-gray-400 hover:text-[var(--accent)]'}`}
+            title={dlMsg || 'Download to app downloads folder'}
+          >
+            {dlState === 'working' ? '…' : '⬇'}
+          </button>
           <span className="font-mono text-[10px] text-gray-600">
             {playback.volume > 0 ? `${Math.round(playback.volume * 100)}%` : 'vol'}
           </span>

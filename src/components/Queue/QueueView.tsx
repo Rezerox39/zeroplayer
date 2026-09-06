@@ -1,5 +1,12 @@
 import { usePlayerStore } from '../../stores/playerStore';
-import { cmdRemoveFromQueue, cmdReorderQueue, cmdClearQueue } from '../../lib/tauri';
+import {
+  cmdRemoveFromQueue,
+  cmdReorderQueue,
+  cmdClearQueue,
+  cmdToggleShuffle,
+  cmdSetRepeatMode,
+} from '../../lib/tauri';
+import type { RepeatMode } from '../../types';
 
 function formatDuration(secs: number): string {
   if (!secs) return '';
@@ -9,7 +16,7 @@ function formatDuration(secs: number): string {
 }
 
 export default function QueueView() {
-  const { queue, removeFromQueue, reorderQueue, clearQueue } = usePlayerStore();
+  const { queue, removeFromQueue, reorderQueue, clearQueue, shuffled, setShuffled, repeatMode, setRepeatMode } = usePlayerStore();
   const playback = usePlayerStore((s) => s.playback);
 
   const handleClear = async () => {
@@ -34,18 +41,54 @@ export default function QueueView() {
     removeFromQueue(idx);
   };
 
+  const handleShuffle = async () => {
+    const on = await cmdToggleShuffle();
+    setShuffled(on);
+  };
+
+  const cycleRepeat = async () => {
+    const next: Record<RepeatMode, RepeatMode> = { off: 'one', one: 'all', all: 'off' };
+    const mode = next[repeatMode];
+    await cmdSetRepeatMode(mode);
+    setRepeatMode(mode);
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-5 py-4 border-b border-surface-2">
         <span className="font-mono text-[10px] tracking-widest text-gray-600 uppercase">
           queue · {queue.length} tracks
         </span>
-        <button
-          onClick={handleClear}
-          className="font-mono text-[10px] px-3 py-1 border border-surface-3 text-gray-500 hover:text-red-400 hover:border-red-400 transition-colors"
-        >
-          clear
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShuffle}
+            className={`font-mono text-[10px] px-3 py-1 border transition-colors ${
+              shuffled
+                ? 'border-[var(--accent)] text-[var(--accent)]'
+                : 'border-surface-3 text-gray-500 hover:text-white'
+            }`}
+            title="Toggle shuffle"
+          >
+            ⤨ shuffle
+          </button>
+          <button
+            onClick={cycleRepeat}
+            className={`font-mono text-[10px] px-3 py-1 border transition-colors ${
+              repeatMode !== 'off'
+                ? 'border-[var(--accent)] text-[var(--accent)]'
+                : 'border-surface-3 text-gray-500 hover:text-white'
+            }`}
+            title={`Repeat: ${repeatMode}`}
+          >
+            ↻ {repeatMode}
+          </button>
+          <button
+            onClick={handleClear}
+            className="font-mono text-[10px] px-3 py-1 border border-surface-3 text-gray-500 hover:text-red-400 hover:border-red-400 transition-colors"
+          >
+            clear
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto divide-y divide-surface-2">

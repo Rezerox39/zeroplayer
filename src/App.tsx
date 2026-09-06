@@ -11,6 +11,7 @@ import QueueView from './components/Queue/QueueView';
 import SearchView from './components/Search/SearchView';
 import StatsView from './components/Stats/StatsView';
 import SettingsView from './components/Settings/SettingsView';
+import SetupView from './components/Setup/SetupView';
 
 export default function App() {
   const { activeView } = usePlayerStore();
@@ -66,6 +67,11 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  // First-run setup wizard (ZMT parity)
+  if (!config.setup_done) {
+    return <SetupView />;
   }
 
   return (

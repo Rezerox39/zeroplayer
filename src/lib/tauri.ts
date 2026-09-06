@@ -56,6 +56,17 @@ export const getAlbums = (): Promise<Album[]> => invoke('get_albums');
 export const getArtists = (): Promise<Artist[]> => invoke('get_artists');
 export const getFolders = (): Promise<Folder[]> => invoke('get_folders');
 export const getPlaylists = (): Promise<Playlist[]> => invoke('get_playlists');
+export const createPlaylist = (name: string): Promise<Playlist> => invoke('create_playlist', { name });
+export const deletePlaylist = (playlistId: string): Promise<void> => invoke('delete_playlist', { playlistId });
+export const addToPlaylist = (playlistId: string, track: Track): Promise<void> =>
+  invoke('add_to_playlist', { playlistId, track });
+export const removeFromPlaylist = (playlistId: string, trackId: string): Promise<void> =>
+  invoke('remove_from_playlist', { playlistId, trackId });
+export const getPlaylistTracks = (playlistId: string): Promise<Track[]> =>
+  invoke('get_playlist_tracks', { playlistId });
+export const importSpotifyPlaylist = (url: string): Promise<{ name: string; imported: number; total: number }> =>
+  invoke('import_spotify_playlist', { url });
+export const downloadTrack = (track: Track): Promise<string> => invoke('download_track', { track });
 export const searchLibrary = (query: string): Promise<Track[]> => invoke('search_library', { query });
 export const autoScanMusic = (): Promise<number> => invoke('auto_scan_music');
 export const getCommonMusicDirs = (): Promise<string[]> => invoke('get_common_music_dirs');
