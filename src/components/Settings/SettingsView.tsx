@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLibraryStore } from '../../stores/libraryStore';
-import { updateConfig, jellyfinConnect, telegramConnect, telegramSendPhone, telegramSubmitCode, telegramSubmitPassword, telegramGetChannels } from '../../lib/tauri';
+import { updateConfig, jellyfinConnect, telegramConnect, telegramResetSession, telegramSendPhone, telegramSubmitCode, telegramSubmitPassword, telegramGetChannels } from '../../lib/tauri';
 import type { AccentColor } from '../../types';
 
 const ACCENT_COLORS: { id: AccentColor; label: string; color: string }[] = [
@@ -143,6 +143,20 @@ export default function SettingsView() {
     }
   };
 
+  const handleTgReset = async () => {
+    setTgLoading(true);
+    setTgError('');
+    try {
+      const msg = await telegramResetSession();
+      setMsg(msg);
+      setTgStep('phone');
+      setTgChannels([]);
+    } catch (e: any) {
+      setTgError(e.toString());
+    }
+    setTgLoading(false);
+  };
+
   // ── Render ───────────────────────────────────────────────────────
 
   return (
@@ -220,6 +234,9 @@ export default function SettingsView() {
             <Input label="api_hash" value={apiHash} onChange={setApiHash} placeholder="your_api_hash" />
             <button onClick={handleTgInit} disabled={tgLoading} className="settings-btn">
               {tgLoading ? 'connecting...' : 'start login'}
+            </button>
+            <button onClick={handleTgReset} disabled={tgLoading} className="settings-btn">
+              reset session
             </button>
           </div>
         )}

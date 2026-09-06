@@ -16,9 +16,14 @@ import type {
 
 export { convertFileSrc };
 
-/** Convert a local file path to a URL the webview can play/display. */
+/**
+ * Convert a path to a URL the webview can play/display.
+ * Remote http(s) URLs (e.g. YouTube thumbnails) pass through unchanged;
+ * local file paths are converted via Tauri's asset protocol.
+ */
 export function fileUrl(path: string | null | undefined): string | undefined {
   if (!path) return undefined;
+  if (/^https?:\/\//i.test(path)) return path;
   return convertFileSrc(path);
 }
 
@@ -73,6 +78,8 @@ export const ytmusicGetStreamUrl = (videoId: string) =>
 // Telegram (login-based via Pyrogram)
 export const telegramConnect = (apiId: number, apiHash: string) =>
   invoke('telegram_connect', { apiId, apiHash });
+export const telegramResetSession = () =>
+  invoke('telegram_reset_session');
 export const telegramSendPhone = (phoneNumber: string) =>
   invoke('telegram_send_phone', { phoneNumber });
 export const telegramSubmitCode = (code: string) =>

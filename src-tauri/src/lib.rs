@@ -125,6 +125,7 @@ pub fn run() {
             sources::ytmusic::commands::ytmusic_get_stream_url,
             sources::ytmusic::commands::ytmusic_get_lyrics,
             sources::telegram::commands::telegram_connect,
+            sources::telegram::commands::telegram_reset_session,
             sources::telegram::commands::telegram_send_phone,
             sources::telegram::commands::telegram_submit_code,
             sources::telegram::commands::telegram_submit_password,

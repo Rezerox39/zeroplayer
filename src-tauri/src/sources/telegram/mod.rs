@@ -94,9 +94,29 @@ impl TelegramClient {
         Ok(stdout)
     }
 
+    /// Extract the JSON object from output, skipping any noise before it.
+    fn extract_json(output: &str) -> Result<String, String> {
+        let start = output.find('{');
+        let end = output.rfind('}').ok_or_else(|| "No JSON object in output".to_string())?;
+        match start {
+            Some(s) if s < end => Ok(output[s..=end].to_string()),
+            _ => Err(format!("No JSON object in output: {}", &output.chars().take(200).collect::<String>())),
+        }
+    }
+
     pub fn init(&self, api_id: i32, api_hash: &str) -> Result<TelegramAuthResult, String> {
         let out = self.run_script(&["init", &api_id.to_string(), api_hash])?;
-        serde_json::from_str(&out).map_err(|e| format!("Failed to parse output: {}", e))
+        let json = Self::extract_json(&out)?;
+        serde_json::from_str(&json).map_err(|e| format!("Failed to parse output: {}", e))
+    }
+
+    /// Reset any stale/corrupt Pyrogram session file.
+    pub fn reset_session(&self) -> Result<String, String> {
+        let out = self.run_script(&["reset"])?;
+        let json = Self::extract_json(&out)?;
+        let parsed: serde_json::Value = serde_json::from_str(&json)
+            .map_err(|e| format!("Failed to parse reset response: {}", e))?;
+        Ok(parsed.get("message").and_then(|m| m.as_str()).unwrap_or("Session reset").to_string())
     }
 
     pub fn send_phone(&self, phone: &str) -> Result<TelegramAuthResult, String> {

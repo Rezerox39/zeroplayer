@@ -31,6 +31,30 @@ def get_session_path():
     os.makedirs(SESSION_DIR, exist_ok=True)
     return os.path.join(SESSION_DIR, SESSION_NAME)
 
+def reset_session(reset_file: bool = True):
+    """Remove the session DB so a fresh Pyrogram session can be created.
+    Fixes 'row and column' / schema-mismatch errors from a corrupt or
+    version-mismatched session.sqlite file."""
+    import glob
+    for pattern in (f"{SESSION_NAME}.session", f"{SESSION_NAME}.session-journal", f"{SESSION_NAME}.session-wal", f"{SESSION_NAME}.session-shm"):
+        for p in glob.glob(os.path.join(SESSION_DIR, pattern)):
+            try:
+                os.remove(p)
+                print(f"Removed stale session file: {p}")
+            except OSError as e:
+                print(f"Could not remove {p}: {e}")
+    return {"status": "reset", "message": "Session reset. Re-enter your phone number."}
+
+def is_session_db_error(err) -> bool:
+    """Detect SQLite schema/column errors from a corrupt Pyrogram session."""
+    msg = str(err).lower()
+    markers = ["row value misused", "no such column", "no such table",
+               "table sessions", "has 4 columns", "has 3 columns",
+               "malformed", "database disk image is malformed",
+               "no such index", "database is locked"]
+    return any(m in msg for m in markers)
+
+
 async def init_session(api_id: int, api_hash: str):
     """Initialize a new Telegram session."""
     try:
@@ -54,6 +78,10 @@ async def init_session(api_id: int, api_hash: str):
         }
     except Exception as e:
         error_str = str(e)
+        # Corrupt/mismatched session DB → reset and let user re-login
+        if is_session_db_error(e):
+            reset_session()
+            return {"status": "need_phone", "error": "Stale session detected and cleared. Please enter your phone number to log in again."}
         if "PHONE" in error_str or "auth" in error_str.lower():
             return {"status": "need_phone"}
         return {"status": "error", "error": error_str}
@@ -133,6 +161,9 @@ async def submit_code(code: str):
     except errors.PhoneCodeExpired:
         return {"error": "Code expired. Request a new one."}
     except Exception as e:
+        if is_session_db_error(e):
+            reset_session()
+            return {"error": "Stale session cleared. Please send your phone number again."}
         return {"error": str(e)}
 
 

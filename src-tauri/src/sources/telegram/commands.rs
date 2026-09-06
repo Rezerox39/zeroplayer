@@ -17,7 +17,6 @@ pub async fn telegram_connect(
     api_id: i32,
     api_hash: String,
 ) -> Result<TelegramAuthResult, String> {
-    // Save the API credentials to config file
     let config_dir = std::env::var("APP_DIR").unwrap_or_else(|_| ".".to_string());
     let config_path = std::path::PathBuf::from(&config_dir).join("telegram_config.json");
     let config = TelegramConfig { api_id, api_hash: api_hash.clone() };
@@ -27,7 +26,6 @@ pub async fn telegram_connect(
     let client = TelegramClient::new();
     let result = client.init(api_id, &api_hash)?;
 
-    // Update state config
     let mut cfg = state.config.write().await;
     cfg.telegram = Some(crate::config::TelegramConfig {
         bot_token: String::new(),
@@ -35,6 +33,13 @@ pub async fn telegram_connect(
     });
 
     Ok(result)
+}
+
+/// Reset any stale/corrupt Pyrogram session (fixes "row / column" errors).
+#[tauri::command]
+pub async fn telegram_reset_session() -> Result<String, String> {
+    let client = TelegramClient::new();
+    client.reset_session()
 }
 
 /// Send phone number for verification (step 1 of login)
@@ -82,6 +87,5 @@ pub async fn telegram_download_audio(
 ) -> Result<String, String> {
     let client = TelegramClient::new();
     let file_path = client.download_audio(message_id, channel_id)?;
-    // TODO: could import into library here
     Ok(file_path)
 }
