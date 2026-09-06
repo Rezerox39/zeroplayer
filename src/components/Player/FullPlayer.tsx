@@ -11,9 +11,12 @@ function formatTime(secs: number): string {
 }
 
 export default function FullPlayer() {
-  const { playback, lyrics, setLyrics, lyricsSynced } = usePlayerStore();
+  const { playback, setPlayback, lyrics, setLyrics, lyricsSynced } = usePlayerStore();
   const track = playback.current_track;
   const [loadingLyrics, setLoadingLyrics] = useState(false);
+  const [sleepMin, setSleepMin] = useState(0);
+  const [sleepLeft, setSleepLeft] = useState(0);
+  const [sleepTimerId, setSleepTimerId] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setLyrics(null, false);
@@ -27,6 +30,44 @@ export default function FullPlayer() {
         .finally(() => setLoadingLyrics(false));
     }
   }, [track?.id]);
+
+  const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+  const cycleSpeed = async () => {
+    const cur = playback.speed || 1;
+    const idx = SPEEDS.indexOf(cur);
+    const next = SPEEDS[(idx + 1) % SPEEDS.length];
+    await cmdSetSpeed(next);
+    setPlayback({ ...playback, speed: next });
+  };
+
+  const cycleSleep = () => {
+    const OPTIONS = [0, 15, 30, 45, 60, 90];
+    const cur = sleepMin;
+    const next = OPTIONS[(OPTIONS.indexOf(cur) + 1) % OPTIONS.length];
+    if (sleepTimerId) clearTimeout(sleepTimerId);
+    setSleepMin(next);
+    setSleepLeft(0);
+    if (next > 0) {
+      const timer = setTimeout(() => {
+        const audio = document.querySelector('audio');
+        audio?.pause();
+        usePlayerStore.getState().setPlayback({
+          ...usePlayerStore.getState().playback,
+          status: 'paused',
+        });
+        setSleepMin(0);
+        setSleepLeft(0);
+      }, next * 60 * 1000);
+      setSleepTimerId(timer);
+      // countdown ticker
+      let left = next * 60;
+      const ticker = setInterval(() => {
+        left -= 1;
+        setSleepLeft(Math.max(0, left));
+        if (left <= 0) clearInterval(ticker);
+      }, 1000);
+    }
+  };
 
   const coverSrc = fileUrl(track?.cover_path);
 
@@ -59,11 +100,16 @@ export default function FullPlayer() {
         </div>
 
         {/* Time / speed badges */}
-        <div className="flex gap-3 font-mono text-[10px] text-gray-600">
-          <span className="px-2 py-1 border border-surface-3">
+        <div className="flex flex-wrap justify-center gap-2">
+          <button onClick={cycleSpeed} className="px-3 py-1.5 border border-surface-3 font-mono text-[10px] text-gray-400 hover:text-[var(--accent)] hover:border-[var(--accent)] transition-colors">
+            speed {playback.speed || 1}×
+          </button>
+          <button onClick={cycleSleep} className={`px-3 py-1.5 border font-mono text-[10px] transition-colors ${sleepMin > 0 ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-surface-3 text-gray-400 hover:text-[var(--accent)] hover:border-[var(--accent)]'}`}>
+            {sleepMin > 0 ? `sleep ${sleepLeft ? formatTime(sleepLeft) : sleepMin + 'm'}` : 'sleep timer'}
+          </button>
+          <span className="px-3 py-1.5 border border-surface-3 font-mono text-[10px] text-gray-500">
             {formatTime(playback.position_secs)} / {formatTime(playback.duration_secs)}
           </span>
-          <span className="px-2 py-1 border border-surface-3">{playback.speed}×</span>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Track, Album, Artist, Folder, AppConfig, ListeningStats } from '../types';
+import type { Track, Album, Artist, Folder, Genre, AppConfig, ListeningStats } from '../types';
 
 interface LibraryStore {
   config: AppConfig;
@@ -7,6 +7,7 @@ interface LibraryStore {
   albums: Album[];
   artists: Artist[];
   folders: Folder[];
+  genres: Genre[];
   listeningStats: ListeningStats | null;
   loading: boolean;
   error: string | null;
@@ -16,6 +17,7 @@ interface LibraryStore {
   setAlbums: (albums: Album[]) => void;
   setArtists: (artists: Artist[]) => void;
   setFolders: (folders: Folder[]) => void;
+  setGenres: (genres: Genre[]) => void;
   setListeningStats: (s: ListeningStats) => void;
   setLoading: (v: boolean) => void;
   setError: (e: string | null) => void;
@@ -32,6 +34,7 @@ export const useLibraryStore = create<LibraryStore>((set) => ({
   albums: [],
   artists: [],
   folders: [],
+  genres: [],
   listeningStats: null,
   loading: false,
   error: null,
@@ -41,6 +44,7 @@ export const useLibraryStore = create<LibraryStore>((set) => ({
   setAlbums: (albums) => set({ albums }),
   setArtists: (artists) => set({ artists }),
   setFolders: (folders) => set({ folders }),
+  setGenres: (genres) => set({ genres }),
   setListeningStats: (listeningStats) => set({ listeningStats }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),

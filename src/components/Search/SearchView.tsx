@@ -69,7 +69,7 @@ export default function SearchView() {
     setPlayingId(track.id);
     setError('');
     try {
-      await playTrackAndSet(track);
+      await playTrackAndSet(track, results);
     } catch (e: any) {
       setError(`Failed to play "${track.title}": ${e}`);
     } finally {

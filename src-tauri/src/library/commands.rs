@@ -1,4 +1,4 @@
-use super::{Album, Artist, Folder, Playlist, Track};
+use super::{Album, Artist, Folder, Genre, Playlist, Track};
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -47,6 +47,11 @@ pub async fn get_albums(state: State<'_, AppState>) -> Result<Vec<Album>, String
 #[tauri::command]
 pub async fn get_artists(state: State<'_, AppState>) -> Result<Vec<Artist>, String> {
     state.library.get_artists().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_genres(state: State<'_, AppState>) -> Result<Vec<Genre>, String> {
+    state.library.get_genres().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -346,4 +351,58 @@ pub async fn auto_scan_music(state: State<'_, AppState>) -> Result<usize, String
 pub async fn get_common_music_dirs() -> Result<Vec<String>, String> {
     let dirs = crate::config::paths::get_common_music_dirs();
     Ok(dirs.into_iter().map(|d| d.display().to_string()).collect())
+}
+/// Import a YouTube Music / YouTube playlist URL: fetch all entries via yt-dlp,
+/// store as a playlist with youtube_music source tracks (no re-search needed).
+#[tauri::command]
+pub async fn import_youtube_playlist(
+    state: State<'_, AppState>,
+    url: String,
+) -> Result<SpotifyImportResult, String> {
+    let yt = crate::sources::ytmusic::YTMusicClient::new();
+    let entries = yt.list_playlist(&url)?;
+    if entries.is_empty() {
+        return Err("No tracks found in playlist".to_string());
+    }
+
+    let playlist_name = format!("yt-{} tracks", entries.len());
+    let playlist = state.library.create_playlist(&playlist_name).map_err(|e| e.to_string())?;
+    let mut imported = 0usize;
+    for (i, entry) in entries.iter().enumerate() {
+        let id = entry.id.clone();
+        if id.is_empty() { continue; }
+        let track = Track {
+            id: id.clone(),
+            title: entry.title.clone(),
+            artist: if entry.artist.is_empty() { None } else { Some(entry.artist.clone()) },
+            album: None,
+            album_artist: None,
+            genre: None,
+            year: None,
+            track_number: Some((i + 1) as i32),
+            duration: None,
+            file_path: None,
+            source: "youtube_music".to_string(),
+            source_id: Some(id),
+            cover_path: None,
+            play_count: Some(0),
+            last_played_at: None,
+            created_at: None,
+            updated_at: None,
+        };
+        if state.library.add_to_playlist(&playlist.id, &track).is_ok() {
+            imported += 1;
+        }
+    }
+
+    if imported == 0 {
+        let _ = state.library.delete_playlist(&playlist.id);
+        return Err("Could not add any tracks from playlist".to_string());
+    }
+
+    Ok(SpotifyImportResult {
+        name: playlist.name,
+        imported,
+        total: entries.len(),
+    })
 }

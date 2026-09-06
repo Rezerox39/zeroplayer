@@ -169,6 +169,24 @@ impl LibraryManager {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    pub fn get_genres(&self) -> rusqlite::Result<Vec<Genre>> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let mut stmt = conn.prepare(
+            r#"SELECT genre, COUNT(*) as track_count
+               FROM tracks
+               WHERE genre IS NOT NULL AND genre != ''
+               GROUP BY genre
+               ORDER BY genre"#,
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Genre {
+                name: row.get(0)?,
+                track_count: row.get(1)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
     pub fn get_folders(&self) -> rusqlite::Result<Vec<Folder>> {
         let tracks = self.get_tracks(Some("local"))?;
         use std::collections::HashMap;

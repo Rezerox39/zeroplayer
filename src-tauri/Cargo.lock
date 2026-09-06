@@ -6384,7 +6384,7 @@ checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
 
 [[package]]
 name = "zeroplayer"
-version = "1.0.3"
+version = "1.0.5"
 dependencies = [
  "base64 0.22.1",
  "bytes",

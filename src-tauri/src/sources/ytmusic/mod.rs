@@ -44,6 +44,19 @@ pub struct YTSearchResponse {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YTPlaylistEntry {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YTPlaylistResponse {
+    pub entries: Vec<YTPlaylistEntry>,
+    pub error: Option<String>,
+}
+
 pub struct YTMusicClient;
 
 impl YTMusicClient {
@@ -195,6 +208,17 @@ impl YTMusicClient {
             }
         }
         None
+    }
+
+    pub fn list_playlist(&self, url: &str) -> Result<Vec<YTPlaylistEntry>, String> {
+        let out = self.run_script(&["playlist", url])?;
+        let json = Self::extract_json(&out)?;
+        let parsed: YTPlaylistResponse = serde_json::from_str(&json)
+            .map_err(|e| format!("Failed to parse playlist response: {}", e))?;
+        if let Some(err) = parsed.error {
+            return Err(err);
+        }
+        Ok(parsed.entries)
     }
 
     pub fn to_track_from_download(&self, result: YTMusicSearchResult, file_path: String) -> Track {

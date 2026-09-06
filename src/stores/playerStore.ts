@@ -14,6 +14,10 @@ interface PlayerStore {
   searchResults: Track[];
   /** Current playable src URL for HTML5 Audio */
   currentSrc: string | null;
+  /** Context tracks from the view that initiated playback (search, library, etc.) */
+  playContext: Track[];
+  playContextIdx: number;
+  setPlayContext: (tracks: Track[], idx: number) => void;
 
   // Player actions
   setPlayback: (state: PlaybackState) => void;
@@ -51,6 +55,9 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   searchQuery: '',
   searchResults: [],
   currentSrc: null,
+  playContext: [],
+  playContextIdx: 0,
+  setPlayContext: (tracks, idx) => set({ playContext: tracks, playContextIdx: idx }),
 
   setPlayback: (state) => set({ playback: state }),
   setCurrentSrc: (src) => set({ currentSrc: src }),

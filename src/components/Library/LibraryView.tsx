@@ -10,12 +10,13 @@ import {
   deletePlaylist,
   getPlaylistTracks,
   importSpotifyPlaylist,
+  importYoutubePlaylist,
   removeFromPlaylist,
 } from '../../lib/tauri';
 import { playTrackAndSet } from '../../lib/player';
 import type { Track, Album, Artist, Folder, LibraryTab, Playlist } from '../../types';
 
-const TABS: LibraryTab[] = ['tracks', 'albums', 'artists', 'folders', 'playlists'];
+const TABS: LibraryTab[] = ['tracks', 'albums', 'artists', 'genres', 'folders', 'playlists'];
 
 function formatDuration(secs: number): string {
   if (!secs) return '';
@@ -28,7 +29,7 @@ function formatDuration(secs: number): string {
 
 export default function LibraryView() {
   const { libraryView, setLibraryView } = usePlayerStore();
-  const { tracks, albums, artists, folders } = useLibraryStore();
+  const { tracks, albums, artists, genres, folders } = useLibraryStore();
   const [scanDir, setScanDir] = useState('');
   const [scanning, setScanning] = useState(false);
   const [playError, setPlayError] = useState('');
@@ -91,20 +92,33 @@ export default function LibraryView() {
     setPlaylistBusy(false);
   };
 
-  const handleImportSpotify = async () => {
+  const handleImport = async () => {
     const url = spotifyUrl.trim();
     if (!url) return;
     setPlaylistBusy(true);
-    setPlaylistMsg('importing spotify playlist… (matches each track on youtube)');
     try {
-      const result = await importSpotifyPlaylist(url);
+      const isSpotify = /spotify\.com|spotify\.link|open\.spotify/.test(url);
+      setPlaylistMsg(isSpotify
+        ? 'importing spotify playlist… (matches each track on youtube)'
+        : 'importing youtube playlist…');
+      const result = isSpotify
+        ? await importSpotifyPlaylist(url)
+        : await importYoutubePlaylist(url);
       setSpotifyUrl('');
       setPlaylistMsg(`imported ${result.imported} of ${result.total} tracks → "${result.name}"`);
+      if (result.imported) openPlaylist(await findPlaylistId(result.name));
       await refreshPlaylists();
     } catch (e: any) {
       setPlaylistMsg(String(e));
     }
     setPlaylistBusy(false);
+  };
+
+  const findPlaylistId = async (name: string): Promise<string | null> => {
+    try {
+      const pls = await getPlaylists();
+      return pls.find((p) => p.name === name)?.id || pls[0]?.id || null;
+    } catch { return null; }
   };
 
   const handleRemoveFromPlaylist = async (trackId: string) => {
@@ -115,6 +129,10 @@ export default function LibraryView() {
     } catch (e: any) {
       setPlaylistMsg(String(e));
     }
+  };
+
+  const playPlaylistTracks = async (track: Track, list: Track[]) => {
+    await playTrackFromLib(track, list);
   };
 
   const handleScan = async () => {
@@ -128,10 +146,10 @@ export default function LibraryView() {
     setScanning(false);
   };
 
-  const playTrackFromLib = async (track: Track) => {
+  const playTrackFromLib = async (track: Track, contextTracks?: Track[]) => {
     setPlayError('');
     try {
-      await playTrackAndSet(track);
+      await playTrackAndSet(track, contextTracks);
     } catch (e: any) {
       console.error('Play error:', e);
       setPlayError(`Failed to play "${track.title}": ${e}`);
@@ -141,7 +159,7 @@ export default function LibraryView() {
   const playAlbum = async (album: Album) => {
     const albumTracks = tracks.filter((t) => t.album === album.name);
     if (albumTracks.length > 0) {
-      await playTrackFromLib(albumTracks[0]);
+      await playTrackFromLib(albumTracks[0], albumTracks);
     }
   };
 
@@ -194,7 +212,7 @@ export default function LibraryView() {
             {tracks.map((track, i) => (
               <div
                 key={track.id || i}
-                onClick={() => playTrackFromLib(track)}
+                onClick={() => playTrackFromLib(track, tracks)}
                 className="flex items-center gap-4 px-5 py-2.5 cursor-pointer hover:bg-surface-1 transition-colors"
               >
                 <span className="font-mono text-[10px] text-gray-600 w-6 text-right">
@@ -268,13 +286,43 @@ export default function LibraryView() {
         {libraryView === 'artists' && (
           <div className="divide-y divide-surface-2">
             {artists.map((artist, i) => (
-              <div key={i} className="px-5 py-3 hover:bg-surface-1 transition-colors cursor-pointer">
+              <div
+                key={i}
+                onClick={() => {
+                  const artistTracks = tracks.filter((t) => t.artist === artist.name);
+                  if (artistTracks.length > 0) playTrackFromLib(artistTracks[0], artistTracks);
+                }}
+                className="px-5 py-3 hover:bg-surface-1 transition-colors cursor-pointer"
+              >
                 <div className="font-mono text-xs text-gray-200">{artist.name}</div>
                 <div className="font-mono text-[10px] text-gray-600">
                   {artist.track_count} tracks · {artist.album_count} albums
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {libraryView === 'genres' && (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 p-4">
+            {genres.map((genre, i) => (
+              <div
+                key={i}
+                onClick={() => {
+                  const gTracks = tracks.filter((t) => t.genre === genre.name);
+                  if (gTracks.length > 0) playTrackFromLib(gTracks[0], gTracks);
+                }}
+                className="bg-surface-1 border border-surface-2 p-4 hover:border-[var(--accent)] transition-colors cursor-pointer"
+              >
+                <div className="font-mono text-sm text-gray-200 truncate">{genre.name}</div>
+                <div className="font-mono text-[10px] text-gray-600 mt-1">{genre.track_count} tracks</div>
+              </div>
+            ))}
+            {genres.length === 0 && (
+              <div className="p-12 text-center font-mono text-xs text-gray-600 col-span-full">
+                no genre metadata found in your tracks
+              </div>
+            )}
           </div>
         )}
 
@@ -311,16 +359,16 @@ export default function LibraryView() {
                 <input
                   value={spotifyUrl}
                   onChange={(e) => setSpotifyUrl(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleImportSpotify(); }}
-                  placeholder="spotify playlist url…"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleImport(); }}
+                  placeholder="spotify / youtube playlist url…"
                   className="w-full bg-surface-2 text-gray-300 font-mono text-xs px-3 py-1.5 border border-surface-3 focus:border-[var(--accent)] outline-none"
                 />
                 <button
-                  onClick={handleImportSpotify}
+                  onClick={handleImport}
                   disabled={playlistBusy}
                   className="w-full font-mono text-[10px] px-3 py-1.5 border border-surface-3 text-[var(--accent)] hover:bg-[var(--accent)] hover:text-black disabled:opacity-50"
                 >
-                  import spotify
+                  import playlist
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto">
@@ -372,7 +420,7 @@ export default function LibraryView() {
                     {playlistTracks.map((track, i) => (
                       <div
                         key={track.id}
-                        onClick={() => playTrackFromLib(track)}
+                        onClick={() => playPlaylistTracks(track, playlistTracks)}
                         className="flex items-center gap-4 px-5 py-2.5 cursor-pointer hover:bg-surface-1 transition-colors"
                       >
                         <span className="font-mono text-[10px] text-gray-600 w-6 text-right">{i + 1}</span>

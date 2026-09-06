@@ -10,7 +10,7 @@
   }
 
   body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Baloo 2', 'Nunito', 'Segoe UI', system-ui, sans-serif;
     font-size: var(--font-size, 14px);
     background-color: #000000;
     color: #e0e0e0;

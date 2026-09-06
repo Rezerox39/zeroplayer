@@ -104,4 +104,9 @@ export interface AppConfig {
 
 export type ViewTab = 'player' | 'library' | 'search' | 'queue' | 'stats' | 'settings';
 
-export type LibraryTab = 'tracks' | 'albums' | 'artists' | 'folders' | 'playlists';
+export type LibraryTab = 'tracks' | 'albums' | 'artists' | 'genres' | 'folders' | 'playlists';
+
+export interface Genre {
+  name: string;
+  track_count: number;
+}

@@ -21,7 +21,7 @@ function formatTime(secs: number): string {
 }
 
 export default function Player() {
-  const { playback, setPlayback, setCurrentSrc, currentSrc, shuffled, setShuffled } = usePlayerStore();
+  const { playback, setPlayback, setCurrentSrc, currentSrc, shuffled, setShuffled, playContext, playContextIdx, setPlayContext } = usePlayerStore();
   const [localPos, setLocalPos] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [dlState, setDlState] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
@@ -69,6 +69,22 @@ export default function Player() {
   }, [setPlayback, setCurrentSrc]);
 
   const handleNext = useCallback(async () => {
+    const ctx = usePlayerStore.getState().playContext;
+    const idx = usePlayerStore.getState().playContextIdx;
+    if (ctx.length > 0 && idx < ctx.length - 1) {
+      await playTrackFromInvoke(ctx[idx + 1]);
+      usePlayerStore.getState().setPlayContext(ctx, idx + 1);
+      return;
+    }
+    if (ctx.length > 0 && (idx >= ctx.length - 1)) {
+      const repeatMode = usePlayerStore.getState().repeatMode;
+      if (repeatMode === 'all') {
+        await playTrackFromInvoke(ctx[0]);
+        usePlayerStore.getState().setPlayContext(ctx, 0);
+        return;
+      }
+    }
+    // Fallback to backend queue or stop
     try {
       const t = await cmdNextTrack();
       if (t) {
@@ -81,9 +97,9 @@ export default function Player() {
         setCurrentSrc(null);
       }
     } catch (e: any) {
-      console.error('Next error:', e);
+      console.error('Next error', e);
     }
-  }, [playTrackFromInvoke, setPlayback, setCurrentSrc]);
+  }, [playTrackFromInvoke, setPlayback, setCurrentSrc, setPlayContext]);
 
   // Sync HTML5 Audio time → store position (real time, no fake ticker)
   useEffect(() => {
@@ -129,6 +145,13 @@ export default function Player() {
     }
   }, [playback.volume]);
 
+  // Sync playback speed
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playback.speed || 1;
+    }
+  }, [playback.speed]);
+
   // Sync play/pause with audio element
   useEffect(() => {
     const audio = audioRef.current;
@@ -153,6 +176,14 @@ export default function Player() {
   }, [playback.status, setPlayback]);
 
   const handlePrev = useCallback(async () => {
+    const ctx = usePlayerStore.getState().playContext;
+    const idx = usePlayerStore.getState().playContextIdx;
+    if (ctx.length > 0 && idx > 0) {
+      await playTrackFromInvoke(ctx[idx - 1]);
+      usePlayerStore.getState().setPlayContext(ctx, idx - 1);
+      return;
+    }
+    // Fallback: restart or go to previous in backend queue
     if (audioRef.current && audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       setLocalPos(0);
@@ -164,9 +195,9 @@ export default function Player() {
         await playTrackFromInvoke(t);
       }
     } catch (e: any) {
-      console.error('Prev error:', e);
+      console.error('Prev error', e);
     }
-  }, [playTrackFromInvoke]);
+  }, [playTrackFromInvoke, setPlayContext]);
 
   const handleToggleShuffle = useCallback(async () => {
     try {

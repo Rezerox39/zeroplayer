@@ -38,6 +38,12 @@ pub struct Artist {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Genre {
+    pub name: String,
+    pub track_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Folder {
     pub path: String,
     pub track_count: usize,

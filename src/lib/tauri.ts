@@ -6,6 +6,7 @@ import type {
   Album,
   Artist,
   Folder,
+  Genre,
   Playlist,
   AppConfig,
   LyricsResult,
@@ -54,6 +55,7 @@ export const scanLocalFiles = (directory: string): Promise<number> => invoke('sc
 export const getTracks = (source?: string): Promise<Track[]> => invoke('get_tracks', { source });
 export const getAlbums = (): Promise<Album[]> => invoke('get_albums');
 export const getArtists = (): Promise<Artist[]> => invoke('get_artists');
+export const getGenres = (): Promise<Genre[]> => invoke('get_genres');
 export const getFolders = (): Promise<Folder[]> => invoke('get_folders');
 export const getPlaylists = (): Promise<Playlist[]> => invoke('get_playlists');
 export const createPlaylist = (name: string): Promise<Playlist> => invoke('create_playlist', { name });
@@ -66,6 +68,8 @@ export const getPlaylistTracks = (playlistId: string): Promise<Track[]> =>
   invoke('get_playlist_tracks', { playlistId });
 export const importSpotifyPlaylist = (url: string): Promise<{ name: string; imported: number; total: number }> =>
   invoke('import_spotify_playlist', { url });
+export const importYoutubePlaylist = (url: string): Promise<{ name: string; imported: number; total: number }> =>
+  invoke('import_youtube_playlist', { url });
 export const downloadTrack = (track: Track): Promise<string> => invoke('download_track', { track });
 export const searchLibrary = (query: string): Promise<Track[]> => invoke('search_library', { query });
 export const autoScanMusic = (): Promise<number> => invoke('auto_scan_music');

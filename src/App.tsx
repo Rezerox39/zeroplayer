@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { usePlayerStore } from './stores/playerStore';
 import { useLibraryStore } from './stores/libraryStore';
-import { getConfig, getTracks, getAlbums, getArtists, getListeningStats, autoScanMusic } from './lib/tauri';
+import { getConfig, getTracks, getAlbums, getArtists, getGenres, getListeningStats, autoScanMusic } from './lib/tauri';
 import Sidebar from './components/common/Sidebar';
 import Player from './components/Player/Player';
 import FullPlayer from './components/Player/FullPlayer';
@@ -15,24 +15,29 @@ import SetupView from './components/Setup/SetupView';
 
 export default function App() {
   const { activeView } = usePlayerStore();
-  const { config, setConfig, setTracks, setAlbums, setArtists, setListeningStats } = useLibraryStore();
+  const { config, setConfig, setTracks, setAlbums, setArtists, setGenres, setListeningStats } = useLibraryStore();
   const [ready, setReady] = useState(false);
   useKeyboardShortcuts();
 
   useEffect(() => {
     (async () => {
       try {
-        const [cfg, tracks, albums, artists, stats] = await Promise.allSettled([
+      const [cfg, tracks, albums, artists, stats] = await Promise.allSettled([
           getConfig(),
           getTracks(),
           getAlbums(),
           getArtists(),
           getListeningStats(),
         ]);
+        // Also fetch genres
+        let genresResult: any;
+        try { genresResult = await getGenres(); } catch { genresResult = undefined; }
+
         if (cfg.status === 'fulfilled') setConfig(cfg.value);
         if (tracks.status === 'fulfilled') setTracks(tracks.value);
         if (albums.status === 'fulfilled') setAlbums(albums.value);
         if (artists.status === 'fulfilled') setArtists(artists.value);
+        if (genresResult) setGenres(genresResult);
         if (stats.status === 'fulfilled') setListeningStats(stats.value);
 
         // Auto-scan common music folders
