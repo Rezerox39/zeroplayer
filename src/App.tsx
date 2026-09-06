@@ -13,6 +13,7 @@ import SearchView from './components/Search/SearchView';
 import StatsView from './components/Stats/StatsView';
 import SettingsView from './components/Settings/SettingsView';
 import SetupView from './components/Setup/SetupView';
+import TitleBar from './components/common/TitleBar';
 
 export default function App() {
   const { activeView } = usePlayerStore();
@@ -92,11 +93,7 @@ export default function App() {
   return (
     <div className="h-screen w-screen flex flex-col bg-black-pure overflow-hidden">
       {/* Top bar - 32px title bar space */}
-      <div data-tauri-drag-region className="h-8 w-full flex-shrink-0 flex items-center px-4 bg-black-pure border-b border-surface-2">
-        <span className="font-mono text-[10px] tracking-widest text-gray-600 uppercase">
-          zeroplayer
-        </span>
-      </div>
+      <TitleBar />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}

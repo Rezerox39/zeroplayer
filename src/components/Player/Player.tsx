@@ -127,15 +127,31 @@ export default function Player() {
     const onError = (e: Event) => {
       console.error('Audio error', (e.target as HTMLAudioElement).error);
     };
+    const onPlay = () => {
+      const s = usePlayerStore.getState();
+      if (s.playback.status !== 'playing') {
+        s.setPlayback({ ...s.playback, status: 'playing' });
+      }
+    };
+    const onPause = () => {
+      const s = usePlayerStore.getState();
+      if (s.playback.status !== 'paused') {
+        s.setPlayback({ ...s.playback, status: 'paused' });
+      }
+    };
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('error', onError);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
     };
   }, [dragging, handleNext]);
 

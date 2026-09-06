@@ -457,6 +457,13 @@ export default function SettingsView() {
           re-run startup setup
         </button>
       </section>
+
+      {/* Credit */}
+      <div className="mt-8 text-center pb-4">
+        <span className="font-mono text-[10px] text-gray-500">
+          made by <a href="https://github.com/Rezerox39/zeroplayer" target="_blank" rel="noreferrer" className="accent-text hover:underline">Abhi ❤️✨</a>
+        </span>
+      </div>
     </div>
   );
 }

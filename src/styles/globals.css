@@ -93,6 +93,7 @@
     50% { transform: scaleY(1); }
   }
 
+
   .accent-pulse {
     animation: accent-pulse 2s ease-in-out infinite;
   }
@@ -100,4 +101,34 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.45; }
   }
+
+  /* macOS-style window control dots (right side) */
+  .mac-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s;
+  }
+  .mac-dot-glyph {
+    opacity: 0;
+    transition: opacity 0.15s;
+    width: 8px;
+    height: 8px;
+  }
+  .mac-dot:hover .mac-dot-glyph {
+    opacity: 1;
+  }
+  .mac-dot-red { background-color: #ff5f57; }
+  .mac-dot-yellow { background-color: #febc2e; }
+  .mac-dot-green { background-color: #28c840; }
+  .mac-dot-red:hover { background-color: #ff3b30; }
+  .mac-dot-yellow:hover { background-color: #f0a510; }
+  .mac-dot-green:hover { background-color: #1fa52c; }
+
+
 }
