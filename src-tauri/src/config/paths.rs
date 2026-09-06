@@ -44,9 +44,22 @@ pub fn find_ytdlp_installed(python: &str) -> bool {
 }
 
 /// Resolve a script path relative to the app's resource directory.
-/// Uses the RESOURCE_DIR env var set by Tauri setup, then falls back to exe-relative paths.
+/// Priority:
+///   1. APP_DIR/python/<relative>  (scripts written at startup, guaranteed to exist)
+///   2. RESOURCE_DIR/<relative>    (Tauri bundled resources)
+///   3. exe-relative paths
+///   4. cwd (dev mode)
 pub fn resolve_resource_path(relative: &str) -> PathBuf {
-    // 1. RESOURCE_DIR env var (set by Tauri setup)
+    // 1. APP_DIR (embedded scripts written at startup to APP_DIR/python/)
+    //    Callers pass relative like "python/download.py", so join directly.
+    if let Ok(app_dir) = std::env::var("APP_DIR") {
+        let path = PathBuf::from(&app_dir).join(relative);
+        if path.exists() {
+            return path;
+        }
+    }
+
+    // 2. RESOURCE_DIR env var
     if let Ok(res_dir) = std::env::var("RESOURCE_DIR") {
         let path = PathBuf::from(res_dir).join(relative);
         if path.exists() {
@@ -54,7 +67,7 @@ pub fn resolve_resource_path(relative: &str) -> PathBuf {
         }
     }
 
-    // 2. Tauri resource directory (bundled with app)
+    // 3. Tauri resource directory (bundled with app)
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let candidates = [
@@ -70,24 +83,15 @@ pub fn resolve_resource_path(relative: &str) -> PathBuf {
         }
     }
 
-    // 3. Current working directory (dev mode)
+    // 4. Current working directory (dev mode)
     if let Ok(cwd) = std::env::current_dir() {
         let full = cwd.join(relative);
         if full.exists() {
             return full;
         }
-        // Also try parent of src-tauri (where python/ lives)
         let parent = cwd.parent().unwrap_or(&cwd).join(relative);
         if parent.exists() {
             return parent;
-        }
-    }
-
-    // 4. User's home directory
-    if let Some(home) = dirs::home_dir() {
-        let full = home.join(relative);
-        if full.exists() {
-            return full;
         }
     }
 

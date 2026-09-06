@@ -9,9 +9,15 @@ import type { Track } from '../types';
  */
 export async function playTrackAndSet(track: Track): Promise<void> {
   const { setPlayback, setCurrentSrc } = usePlayerStore.getState();
-  const result = await playTrack(track);
-  const fp = (result as any).file_path || track.file_path;
+  const result: any = await playTrack(track);
+  const fp: string | undefined = result?.file_path || track.file_path;
   const src = fp ? fileUrl(fp) : null;
   setCurrentSrc(src);
-  setPlayback(result.state);
+
+  // Backend returns { state: PlaybackState, file_path } — handle both shapes defensively.
+  if (result?.state && 'status' in result.state) {
+    setPlayback(result.state);
+  } else if (result && 'status' in result) {
+    setPlayback(result as any);
+  }
 }

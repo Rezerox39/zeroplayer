@@ -3,6 +3,7 @@ pub mod config;
 pub mod library;
 pub mod lyrics;
 pub mod queue;
+pub mod scripts;
 pub mod sources;
 pub mod stats;
 
@@ -51,7 +52,12 @@ pub fn run() {
             std::fs::create_dir_all(&app_dir).ok();
             std::env::set_var("APP_DIR", app_dir.display().to_string());
 
-            // Set RESOURCE_DIR so scripts can be found at runtime
+            // Write embedded python bridge scripts to APP_DIR/python/ so they
+            // always exist at runtime (resource bundling layout is unreliable).
+            scripts::ensure_scripts(&app_dir);
+            log::info!("APP_DIR = {}", app_dir.display());
+
+            // Also record the Tauri resource dir for bundled assets.
             if let Ok(res_dir) = app.path().resource_dir() {
                 std::env::set_var("RESOURCE_DIR", res_dir.display().to_string());
                 log::info!("RESOURCE_DIR = {}", res_dir.display());

@@ -11,7 +11,7 @@ function formatTime(secs: number): string {
 }
 
 export default function Player() {
-  const { playback, setPlayback, setCurrentSrc, setLyrics, queue, repeatMode, currentSrc } = usePlayerStore();
+  const { playback, setPlayback, setCurrentSrc, currentSrc } = usePlayerStore();
   const [localPos, setLocalPos] = useState(0);
   const [dragging, setDragging] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -19,7 +19,7 @@ export default function Player() {
 
   // Keep localPos synced with store when not dragging
   useEffect(() => {
-    if (!dragging) setLocalPos(playback.position_secs);
+    if (!dragging) setLocalPos(playback.position_secs || 0);
   }, [playback.position_secs, dragging]);
 
   // --- HTML5 Audio element lifecycle ---
@@ -31,6 +31,47 @@ export default function Player() {
     audio.load();
     audio.play().catch(() => {});
   }, [currentSrc]);
+
+  // Play a track: invoke backend to resolve file (downloads YT via yt-dlp),
+  // then set src and state. Defensive: null-check everything.
+  const playTrackFromInvoke = useCallback(async (t: Track) => {
+    try {
+      const result: any = await playTrack(t);
+      const fp: string | undefined = result?.file_path || t.file_path;
+      const src = fp ? fileUrl(fp) : undefined;
+      setCurrentSrc(src || null);
+      if (result?.state) {
+        setPlayback(result.state);
+      } else {
+        // Fallback in case backend returns flat object (old builds)
+        const { state, file_path, ...rest } = result;
+        if (result && 'status' in result) {
+          setPlayback(result as any);
+        } else if (state && 'status' in state) {
+          setPlayback(state);
+        }
+      }
+    } catch (e: any) {
+      console.error('Play error:', e);
+    }
+  }, [setPlayback, setCurrentSrc]);
+
+  const handleNext = useCallback(async () => {
+    try {
+      const t = await cmdNextTrack();
+      if (t) {
+        await playTrackFromInvoke(t);
+      } else {
+        audioRef.current?.pause();
+        if (audioRef.current) audioRef.current.currentTime = 0;
+        setLocalPos(0);
+        setPlayback({ ...usePlayerStore.getState().playback, status: 'stopped', position_secs: 0 });
+        setCurrentSrc(null);
+      }
+    } catch (e: any) {
+      console.error('Next error:', e);
+    }
+  }, [playTrackFromInvoke, setPlayback, setCurrentSrc]);
 
   // Sync HTML5 Audio time → store position (real time, no fake ticker)
   useEffect(() => {
@@ -52,7 +93,6 @@ export default function Player() {
       }
     };
     const onEnded = () => {
-      // Auto-next or stop
       handleNext();
     };
     const onError = (e: Event) => {
@@ -68,7 +108,7 @@ export default function Player() {
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
     };
-  }, [dragging]);
+  }, [dragging, handleNext]);
 
   // Sync volume
   useEffect(() => {
@@ -92,102 +132,69 @@ export default function Player() {
     if (playback.status === 'playing') {
       audioRef.current?.pause();
       await pausePlayback();
-      setPlayback({ ...playback, status: 'paused' });
+      setPlayback({ ...usePlayerStore.getState().playback, status: 'paused' });
     } else {
       audioRef.current?.play().catch(() => {});
       await resumePlayback();
-      setPlayback({ ...playback, status: 'playing' });
+      setPlayback({ ...usePlayerStore.getState().playback, status: 'playing' });
     }
-  }, [playback, setPlayback]);
-
-  const playTrackAsync = useCallback(async (t: Track) => {
-    try {
-      const result = await playTrack(t);
-      // result: { state: PlaybackState, file_path?: string }
-      const fp = (result as any).file_path || t.file_path;
-      const src = fileUrl(fp);
-      setCurrentSrc(src || null);
-      setPlayback(result.state);
-    } catch (e: any) {
-      console.error('Play error', e);
-    }
-  }, [setPlayback, setCurrentSrc]);
-
-  const handleNext = useCallback(async () => {
-    const t = await cmdNextTrack();
-    if (t) {
-      await playTrackAsync(t);
-    } else {
-      // No next track — stop
-      audioRef.current?.pause();
-      audioRef.current!.currentTime = 0;
-      setLocalPos(0);
-      setPlayback({ ...playback, status: 'stopped', position_secs: 0 });
-      setCurrentSrc(null);
-    }
-  }, [setPlayback, setCurrentSrc, playback, playTrackAsync]);
+  }, [playback.status, setPlayback]);
 
   const handlePrev = useCallback(async () => {
-    // If more than 3s in, restart current track; otherwise go to previous
     if (audioRef.current && audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       setLocalPos(0);
       return;
     }
-    const t = await cmdPreviousTrack();
-    if (t) {
-      await playTrackAsync(t);
+    try {
+      const t = await cmdPreviousTrack();
+      if (t) {
+        await playTrackFromInvoke(t);
+      }
+    } catch (e: any) {
+      console.error('Prev error:', e);
     }
-  }, [playback, playTrackAsync]);
+  }, [playTrackFromInvoke]);
 
   // Seek by clicking on the progress bar
   const handleSeekStart = (e: React.MouseEvent<HTMLDivElement>) => {
     setDragging(true);
-    handleSeek(e);
+    applySeek(e);
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const applySeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const newTime = pct * (playback.duration_secs || 0);
     setLocalPos(newTime);
-    if (audioRef.current) {
+    if (audioRef.current && isFinite(newTime)) {
       audioRef.current.currentTime = newTime;
     }
   };
 
-  const handleSeekEnd = () => {
-    setDragging(false);
-  };
-
-  // Drag seek
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  // Drag seek via window listeners while dragging
+  useEffect(() => {
     if (!dragging) return;
     const bar = document.getElementById('seek-bar');
     if (!bar) return;
-    const rect = bar.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newTime = pct * (playback.duration_secs || 0);
-    setLocalPos(newTime);
-    if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
-    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = bar.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const newTime = pct * (playback.duration_secs || 0);
+      setLocalPos(newTime);
+      if (audioRef.current && isFinite(newTime)) {
+        audioRef.current.currentTime = newTime;
+      }
+    };
+    const handleMouseUp = () => setDragging(false);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
   }, [dragging, playback.duration_secs]);
-
-  const handleMouseUp = useCallback(() => {
-    setDragging(false);
-  }, []);
-
-  useEffect(() => {
-    if (dragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [dragging, handleMouseMove, handleMouseUp]);
 
   // Volume via click on volume bar
   const handleVolumeChange = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -227,13 +234,7 @@ export default function Player() {
         {/* Controls + seek */}
         <div className="flex-1 flex flex-col items-center gap-1">
           <div className="flex items-center gap-5">
-            <button
-              onClick={handlePrev}
-              className="text-gray-400 hover:text-white transition-colors text-sm"
-              title="Previous"
-            >
-              ▮◄
-            </button>
+            <button onClick={handlePrev} className="text-gray-400 hover:text-white transition-colors text-sm" title="Previous">▮◄</button>
             <button
               onClick={handlePlayPause}
               className="accent-text text-xl hover:opacity-80 transition-opacity"
@@ -241,13 +242,7 @@ export default function Player() {
             >
               {playback.status === 'playing' ? '▮▮' : '►'}
             </button>
-            <button
-              onClick={handleNext}
-              className="text-gray-400 hover:text-white transition-colors text-sm"
-              title="Next"
-            >
-              ►▮
-            </button>
+            <button onClick={handleNext} className="text-gray-400 hover:text-white transition-colors text-sm" title="Next">►▮</button>
           </div>
           <div className="w-full max-w-xl flex items-center gap-2">
             <span className="font-mono text-[10px] text-gray-500 w-10 text-right">{formatTime(localPos)}</span>
@@ -255,7 +250,6 @@ export default function Player() {
               id="seek-bar"
               className="flex-1 h-1 bg-surface-3 rounded-full cursor-pointer group relative"
               onMouseDown={handleSeekStart}
-              onMouseMove={dragging ? undefined : handleSeek}
             >
               <div
                 className="h-full rounded-full transition-[width] duration-75"
@@ -274,16 +268,10 @@ export default function Player() {
           <span className="font-mono text-[10px] text-gray-600">
             {playback.volume > 0 ? `${Math.round(playback.volume * 100)}%` : 'vol'}
           </span>
-          <div
-            className="w-20 h-1 bg-surface-3 rounded-full cursor-pointer"
-            onClick={handleVolumeChange}
-          >
+          <div className="w-20 h-1 bg-surface-3 rounded-full cursor-pointer" onClick={handleVolumeChange}>
             <div
               className="h-full rounded-full"
-              style={{
-                width: `${playback.volume * 100}%`,
-                backgroundColor: 'var(--accent)',
-              }}
+              style={{ width: `${playback.volume * 100}%`, backgroundColor: 'var(--accent)' }}
             />
           </div>
         </div>

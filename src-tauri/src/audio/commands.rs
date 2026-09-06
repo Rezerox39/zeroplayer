@@ -7,7 +7,6 @@ use tauri::State;
 /// so the frontend HTML5 Audio can play it directly.
 #[derive(serde::Serialize)]
 pub struct PlayResult {
-    #[serde(flatten)]
     pub state: PlaybackState,
     /// Resolved local file path (for frontend HTML5 Audio playback)
     pub file_path: Option<String>,
