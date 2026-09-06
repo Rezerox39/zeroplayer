@@ -51,6 +51,9 @@ export default function App() {
         const accentMap: Record<string, string> = { green: '#00ff88', cyan: '#00e5ff', purple: '#b366ff', red: '#DC143C' };
         const color = accentMap[cfg.status === 'fulfilled' ? cfg.value.theme.accent_color : 'cyan'];
         document.documentElement.style.setProperty('--accent', color);
+        if (cfg.status === 'fulfilled' && cfg.value.theme.font_size) {
+          document.documentElement.style.setProperty('--font-size', `${cfg.value.theme.font_size}px`);
+        }
       } catch (e) {
         console.error('Init error:', e);
       } finally {

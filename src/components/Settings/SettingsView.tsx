@@ -157,6 +157,13 @@ export default function SettingsView() {
     setTgLoading(false);
   };
 
+  const handleRerunSetup = async () => {
+    const newConfig = { ...config, setup_done: false };
+    await updateConfig(newConfig);
+    setConfig(newConfig);
+    window.location.reload();
+  };
+
   // ── Render ───────────────────────────────────────────────────────
 
   return (
@@ -309,6 +316,14 @@ export default function SettingsView() {
           <div><kbd className="border border-surface-3 px-1.5">↑↓</kbd> volume</div>
           <div><kbd className="border border-surface-3 px-1.5">⌘K</kbd> search</div>
         </div>
+      </section>
+
+      {/* Setup */}
+      <section className="mt-8">
+        <h3 className="font-mono text-[10px] tracking-widest uppercase text-gray-600 mb-3">setup</h3>
+        <button onClick={handleRerunSetup} className="settings-btn">
+          re-run startup setup
+        </button>
       </section>
     </div>
   );

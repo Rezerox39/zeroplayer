@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
-import { searchLibrary, ytmusicSearchAsTracks, jellyfinSearch, fileUrl } from '../../lib/tauri';
+import {
+  searchLibrary,
+  ytmusicSearchAsTracks,
+  jellyfinSearch,
+  fileUrl,
+  cmdAddToQueue,
+  getPlaylists,
+  addToPlaylist,
+} from '../../lib/tauri';
 import { playTrackAndSet } from '../../lib/player';
-import type { Track } from '../../types';
+import type { Track, Playlist } from '../../types';
 
 type SearchSource = 'all' | 'local' | 'jellyfin' | 'yt-music';
 
@@ -20,6 +28,13 @@ export default function SearchView() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState('');
   const [playingId, setPlayingId] = useState('');
+  const [menuTrackId, setMenuTrackId] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [plMsg, setPlMsg] = useState('');
+
+  useEffect(() => {
+    getPlaylists().then(setPlaylists).catch(() => setPlaylists([]));
+  }, []);
 
   const runSearch = async () => {
     if (!query.trim()) return;
@@ -59,6 +74,23 @@ export default function SearchView() {
       setError(`Failed to play "${track.title}": ${e}`);
     } finally {
       setPlayingId('');
+    }
+  };
+
+  const handleMenuAdd = async (track: Track, playlistId?: string) => {
+    setMenuTrackId(null);
+    try {
+      if (playlistId) {
+        await addToPlaylist(playlistId, track);
+        const pl = playlists.find((p) => p.id === playlistId);
+        setPlMsg(`added to "${pl?.name || 'playlist'}"`);
+      } else {
+        await cmdAddToQueue(track);
+        setPlMsg('added to queue');
+      }
+      setTimeout(() => setPlMsg(''), 2500);
+    } catch (e: any) {
+      setError(String(e));
     }
   };
 
@@ -142,9 +174,45 @@ export default function SearchView() {
                   loading...
                 </span>
               )}
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuTrackId(menuTrackId === track.id ? null : track.id); }}
+                  className="font-mono text-[10px] text-gray-600 hover:text-[var(--accent)] px-2 py-0.5 border border-surface-3 hover:border-[var(--accent)]"
+                  title="Add to queue / playlist"
+                >
+                  +
+                </button>
+                {menuTrackId === track.id && (
+                  <div className="absolute right-0 top-full mt-1 z-20 w-52 bg-surface-2 border border-surface-3 shadow-2xl shadow-black">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleMenuAdd(track); }}
+                      className="w-full text-left px-3 py-2 font-mono text-[10px] text-gray-300 hover:bg-surface-3"
+                    >
+                      + add to queue
+                    </button>
+                    {playlists.map((pl) => (
+                      <button
+                        key={pl.id}
+                        onClick={(e) => { e.stopPropagation(); handleMenuAdd(track, pl.id); }}
+                        className="w-full text-left px-3 py-2 font-mono text-[10px] text-gray-400 hover:bg-surface-3 border-t border-surface-3"
+                      >
+                        + {pl.name}
+                      </button>
+                    ))}
+                    {playlists.length === 0 && (
+                      <div className="px-3 py-2 font-mono text-[9px] text-gray-600 border-t border-surface-3">
+                        no playlists — create one in library
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
+        {plMsg && (
+          <div className="px-5 py-2 font-mono text-[10px] text-[var(--accent)]">{'>'} {plMsg}</div>
+        )}
         {results.length === 0 && !searching && !error && (
           <div className="p-12 text-center font-mono text-xs text-gray-600">
             {query ? 'no results' : 'type a query and press enter'}
