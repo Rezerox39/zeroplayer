@@ -1,6 +1,6 @@
 {
   "name": "zeroplayer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Terminal-inspired desktop music player with AMOLED aesthetic",
   "private": true,
   "type": "module",
