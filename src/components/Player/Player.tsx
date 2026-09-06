@@ -22,6 +22,7 @@ function formatTime(secs: number): string {
 
 export default function Player() {
   const { playback, setPlayback, setCurrentSrc, currentSrc, shuffled, setShuffled, playContext, playContextIdx, setPlayContext } = usePlayerStore();
+  const { downloadProgress } = usePlayerStore();
   const [localPos, setLocalPos] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [dlState, setDlState] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
@@ -212,12 +213,19 @@ export default function Player() {
     if (!t) return;
     setDlState('working');
     setDlMsg('');
+    usePlayerStore.getState().setDownloadProgress(0);
     try {
+      const dlProgressTimer = setInterval(() => {
+        usePlayerStore.getState().setDownloadProgress((p) => Math.min(95, p + 3));
+      }, 200);
       const path = await downloadTrack(t);
+      clearInterval(dlProgressTimer);
+      usePlayerStore.getState().setDownloadProgress(100);
       setDlState('done');
       setDlMsg(path);
-      setTimeout(() => setDlState('idle'), 4000);
+      setTimeout(() => { setDlState('idle'); usePlayerStore.getState().setDownloadProgress(-1); }, 2000);
     } catch (e: any) {
+      usePlayerStore.getState().setDownloadProgress(-1);
       setDlState('error');
       setDlMsg(String(e));
       setTimeout(() => setDlState('idle'), 5000);
@@ -283,7 +291,17 @@ export default function Player() {
       {/* Hidden audio element */}
       <audio ref={audioRef} preload="auto" />
 
-      <div className="h-20 flex-shrink-0 bg-surface-1 border-t border-surface-3 flex items-center px-5 gap-5">
+      {/* Download progress bar */}
+      {downloadProgress >= 0 && downloadProgress <= 100 && (
+        <div className="absolute top-0 left-0 right-0 h-[2px] z-10 bg-surface-2">
+          <div
+            className="h-full transition-[width] duration-300"
+            style={{ width: `${downloadProgress}%`, backgroundColor: 'var(--accent)' }}
+          />
+        </div>
+      )}
+
+      <div className="relative h-20 flex-shrink-0 bg-surface-1 border-t border-surface-3 flex items-center px-5 gap-5">
         {/* Track info + cover art */}
         <div className="w-56 flex items-center gap-3 overflow-hidden">
           {coverSrc ? (

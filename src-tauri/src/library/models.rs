@@ -44,6 +44,12 @@ pub struct Genre {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockEntry {
+    pub path: String,
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Folder {
     pub path: String,
     pub track_count: usize,

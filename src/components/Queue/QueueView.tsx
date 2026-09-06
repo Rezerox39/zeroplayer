@@ -17,11 +17,22 @@ function formatDuration(secs: number): string {
 
 export default function QueueView() {
   const { queue, removeFromQueue, reorderQueue, clearQueue, shuffled, setShuffled, repeatMode, setRepeatMode } = usePlayerStore();
+  const { selectionMode, setSelectionMode, selectedIds, toggleSelected, clearSelected } = usePlayerStore();
   const playback = usePlayerStore((s) => s.playback);
 
   const handleClear = async () => {
     await cmdClearQueue();
     clearQueue();
+  };
+
+  const handleBulkRemove = async () => {
+    const indices = [...selectedIds].map(Number).sort((a, b) => b - a);
+    for (const idx of indices) {
+      await cmdRemoveFromQueue(idx);
+      removeFromQueue(idx);
+    }
+    clearSelected();
+    setSelectionMode(false);
   };
 
   const moveUp = async (idx: number) => {
@@ -60,6 +71,24 @@ export default function QueueView() {
           queue · {queue.length} tracks
         </span>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSelectionMode(!selectionMode)}
+            className={`font-mono text-[10px] px-3 py-1 border transition-colors ${
+              selectionMode
+                ? 'border-[var(--accent)] text-[var(--accent)]'
+                : 'border-surface-3 text-gray-500 hover:text-white'
+            }`}
+          >
+            {selectionMode ? `selected ${selectedIds.size}` : 'select'}
+          </button>
+          {selectionMode && selectedIds.size > 0 && (
+            <button
+              onClick={handleBulkRemove}
+              className="font-mono text-[10px] px-3 py-1 border border-red-600 text-red-400 hover:bg-red-900/30 transition-colors"
+            >
+              remove ({selectedIds.size})
+            </button>
+          )}
           <button
             onClick={handleShuffle}
             className={`font-mono text-[10px] px-3 py-1 border transition-colors ${
@@ -101,6 +130,14 @@ export default function QueueView() {
                 ${isCurrent ? 'bg-surface-2 border-l-2' : 'border-l-2 border-transparent hover:bg-surface-1'}`}
               style={isCurrent ? { borderLeftColor: 'var(--accent)' } : undefined}
             >
+              {selectionMode && (
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(String(i))}
+                  onChange={() => toggleSelected(String(i))}
+                  className="accent-[var(--accent)]"
+                />
+              )}
               <span className="font-mono text-[10px] text-gray-600 w-6 text-right">{i + 1}</span>
               <div className="flex-1 min-w-0">
                 <div className="font-mono text-xs text-gray-200 truncate">{track.title}</div>

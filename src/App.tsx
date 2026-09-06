@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { usePlayerStore } from './stores/playerStore';
 import { useLibraryStore } from './stores/libraryStore';
-import { getConfig, getTracks, getAlbums, getArtists, getGenres, getListeningStats, autoScanMusic } from './lib/tauri';
+import { getConfig, getTracks, getAlbums, getArtists, getGenres, getListeningStats, autoScanMusic, getLikedIds, getRecentlyPlayed, getTopPlayed } from './lib/tauri';
+import HomeView from './components/Home/HomeView';
 import Sidebar from './components/common/Sidebar';
 import Player from './components/Player/Player';
 import FullPlayer from './components/Player/FullPlayer';
@@ -16,6 +17,7 @@ import SetupView from './components/Setup/SetupView';
 export default function App() {
   const { activeView } = usePlayerStore();
   const { config, setConfig, setTracks, setAlbums, setArtists, setGenres, setListeningStats } = useLibraryStore();
+  const { setLikedIds, setRecentlyPlayed, setTopPlayed } = usePlayerStore();
   const [ready, setReady] = useState(false);
   useKeyboardShortcuts();
 
@@ -39,6 +41,11 @@ export default function App() {
         if (artists.status === 'fulfilled') setArtists(artists.value);
         if (genresResult) setGenres(genresResult);
         if (stats.status === 'fulfilled') setListeningStats(stats.value);
+
+        // Home shelves + liked ids
+        try { const ids = await getLikedIds(); setLikedIds(ids); } catch {}
+        try { const rp = await getRecentlyPlayed(); setRecentlyPlayed(rp); } catch {}
+        try { const tp = await getTopPlayed(); setTopPlayed(tp); } catch {}
 
         // Auto-scan common music folders
         try {
@@ -98,8 +105,9 @@ export default function App() {
         {/* Main content area */}
         <main className="flex-1 flex flex-col overflow-hidden bg-black-pure">
           <div className="flex-1 overflow-y-auto">
-            {activeView === 'player' && <FullPlayer />}
-            {activeView === 'library' && <LibraryView />}
+          {activeView === 'player' && <FullPlayer />}
+          {activeView === 'home' && <HomeView />}
+          {activeView === 'library' && <LibraryView />}
             {activeView === 'search' && <SearchView />}
             {activeView === 'queue' && <QueueView />}
             {activeView === 'stats' && <StatsView />}

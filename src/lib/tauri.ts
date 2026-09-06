@@ -5,6 +5,7 @@ import type {
   Track,
   Album,
   Artist,
+  BlockEntry,
   Folder,
   Genre,
   Playlist,
@@ -56,6 +57,20 @@ export const getTracks = (source?: string): Promise<Track[]> => invoke('get_trac
 export const getAlbums = (): Promise<Album[]> => invoke('get_albums');
 export const getArtists = (): Promise<Artist[]> => invoke('get_artists');
 export const getGenres = (): Promise<Genre[]> => invoke('get_genres');
+export const likeTrack = (trackId: string): Promise<void> => invoke('like_track', { trackId });
+export const unlikeTrack = (trackId: string): Promise<void> => invoke('unlike_track', { trackId });
+export const isLiked = (trackId: string): Promise<boolean> => invoke('is_liked', { trackId });
+export const getLikedIds = (): Promise<string[]> => invoke('get_liked_ids');
+export const getLikedTracks = (): Promise<Track[]> => invoke('get_liked_tracks');
+export const blockTrack = (path: string): Promise<void> => invoke('block_track', { path });
+export const unblockTrack = (path: string): Promise<void> => invoke('unblock_track', { path });
+export const getBlocklist = (): Promise<BlockEntry[]> => invoke('get_blocklist');
+export const updateTrackMeta = (trackId: string, title: string, artist: string, album: string, genre: string, year: number | null) =>
+  invoke('update_track_meta', { trackId, title, artist, album, genre, year });
+export const getRecentlyPlayed = (): Promise<Track[]> => invoke('get_recently_played');
+export const getTopPlayed = (): Promise<Track[]> => invoke('get_top_played');
+export const exportPlaylist = (playlistId: string, format: string): Promise<string> =>
+  invoke('export_playlist', { playlistId, format });
 export const getFolders = (): Promise<Folder[]> => invoke('get_folders');
 export const getPlaylists = (): Promise<Playlist[]> => invoke('get_playlists');
 export const createPlaylist = (name: string): Promise<Playlist> => invoke('create_playlist', { name });

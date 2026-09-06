@@ -108,6 +108,10 @@ export default function useKeyboardShortcuts() {
         case 'O':
           state.setActiveView('stats');
           break;
+        case 'h':
+        case 'H':
+          state.setActiveView('home');
+          break;
       }
     };
 

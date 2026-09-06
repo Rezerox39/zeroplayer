@@ -2,6 +2,7 @@ import { usePlayerStore } from '../../stores/playerStore';
 import type { ViewTab } from '../../types';
 
 const NAV_ITEMS: { id: ViewTab; label: string; icon: string }[] = [
+  { id: 'home', label: 'Home', icon: '◈' },
   { id: 'player', label: 'Player', icon: '♫' },
   { id: 'library', label: 'Library', icon: '≡' },
   { id: 'search', label: 'Search', icon: '/' },

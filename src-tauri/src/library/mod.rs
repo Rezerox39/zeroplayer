@@ -44,11 +44,19 @@ impl LibraryManager {
                 created_at TEXT,
                 updated_at TEXT
             );
-            CREATE TABLE IF NOT EXISTS playlist_tracks (
+CREATE TABLE IF NOT EXISTS playlist_tracks (
                 playlist_id TEXT NOT NULL,
                 track_id TEXT NOT NULL,
                 position INTEGER,
                 PRIMARY KEY (playlist_id, track_id)
+);
+            CREATE TABLE IF NOT EXISTS liked (
+                track_id TEXT PRIMARY KEY,
+                created_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS blocklist (
+                path TEXT PRIMARY KEY,
+                created_at TEXT
             );
             CREATE TABLE IF NOT EXISTS listening_stats (
                 track_id TEXT PRIMARY KEY,
@@ -182,6 +190,165 @@ impl LibraryManager {
             Ok(Genre {
                 name: row.get(0)?,
                 track_count: row.get(1)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    // ── Liked tracks ───────────────────────────────────────────────
+
+    pub fn like_track(&self, track_id: &str) -> rusqlite::Result<()> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR IGNORE INTO liked (track_id, created_at) VALUES (?1, ?2)",
+            rusqlite::params![track_id, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn unlike_track(&self, track_id: &str) -> rusqlite::Result<()> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        conn.execute("DELETE FROM liked WHERE track_id = ?1", [track_id])?;
+        Ok(())
+    }
+
+    pub fn is_liked(&self, track_id: &str) -> rusqlite::Result<bool> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM liked WHERE track_id = ?1",
+            [track_id],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    pub fn get_liked_ids(&self) -> rusqlite::Result<Vec<String>> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let mut stmt = conn.prepare("SELECT track_id FROM liked ORDER BY created_at DESC")?;
+        let rows = stmt.query_map([], |row| row.get(0))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    // ── Blocklist ──────────────────────────────────────────────────
+
+    pub fn block_path(&self, path: &str) -> rusqlite::Result<()> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR IGNORE INTO blocklist (path, created_at) VALUES (?1, ?2)",
+            rusqlite::params![path, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn unblock_path(&self, path: &str) -> rusqlite::Result<()> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        conn.execute("DELETE FROM blocklist WHERE path = ?1", [path])?;
+        Ok(())
+    }
+
+    pub fn get_blocklist(&self) -> rusqlite::Result<Vec<BlockEntry>> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let mut stmt = conn.prepare("SELECT path, created_at FROM blocklist ORDER BY created_at DESC")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(BlockEntry { path: row.get(0)?, created_at: row.get(1)? })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    pub fn is_blocked(&self, path: &str) -> rusqlite::Result<bool> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM blocklist WHERE path = ?1",
+            [path],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    // ── Tag editing ────────────────────────────────────────────────
+
+    pub fn update_track_meta(&self, track_id: &str, title: &str, artist: &str, album: &str, genre: &str, year: Option<i32>) -> rusqlite::Result<()> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE tracks SET title = ?1, artist = ?2, album = ?3, genre = ?4, year = ?5, updated_at = ?6 WHERE id = ?7",
+            rusqlite::params![title, artist, album, genre, year, now, track_id],
+        )?;
+        Ok(())
+    }
+
+    // ── Home shelves ───────────────────────────────────────────────
+
+    /// Recently played tracks (limited to N)
+    pub fn get_recently_played(&self, limit: usize) -> rusqlite::Result<Vec<Track>> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let mut stmt = conn.prepare(
+            r#"SELECT t.id, t.title, t.artist, t.album, t.album_artist, t.genre, t.year,
+                      t.track_number, t.duration, t.file_path, t.source, t.source_id,
+                      t.cover_path, t.play_count, t.last_played_at, t.created_at, t.updated_at
+               FROM listening_stats ls
+               JOIN tracks t ON t.id = ls.track_id
+               WHERE ls.last_played_at IS NOT NULL
+               ORDER BY ls.last_played_at DESC
+               LIMIT ?1"#,
+        )?;
+        let rows = stmt.query_map([limit as i64], |row| {
+            Ok(Track {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                album_artist: row.get(4)?,
+                genre: row.get(5)?,
+                year: row.get(6)?,
+                track_number: row.get(7)?,
+                duration: row.get(8)?,
+                file_path: row.get(9)?,
+                source: row.get(10)?,
+                source_id: row.get(11)?,
+                cover_path: row.get(12)?,
+                play_count: row.get(13)?,
+                last_played_at: row.get(14)?,
+                created_at: row.get(15)?,
+                updated_at: row.get(16)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Most frequently played tracks (top N)
+    pub fn get_top_played(&self, limit: usize) -> rusqlite::Result<Vec<Track>> {
+        let conn = self.conn.lock().map_err(|_| rusqlite::Error::ExecuteReturnedResults)?;
+        let mut stmt = conn.prepare(
+            r#"SELECT t.id, t.title, t.artist, t.album, t.album_artist, t.genre, t.year,
+                      t.track_number, t.duration, t.file_path, t.source, t.source_id,
+                      t.cover_path, t.play_count, t.last_played_at, t.created_at, t.updated_at
+               FROM tracks t
+               WHERE t.play_count > 0
+               ORDER BY t.play_count DESC
+               LIMIT ?1"#,
+        )?;
+        let rows = stmt.query_map([limit as i64], |row| {
+            Ok(Track {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                artist: row.get(2)?,
+                album: row.get(3)?,
+                album_artist: row.get(4)?,
+                genre: row.get(5)?,
+                year: row.get(6)?,
+                track_number: row.get(7)?,
+                duration: row.get(8)?,
+                file_path: row.get(9)?,
+                source: row.get(10)?,
+                source_id: row.get(11)?,
+                cover_path: row.get(12)?,
+                play_count: row.get(13)?,
+                last_played_at: row.get(14)?,
+                created_at: row.get(15)?,
+                updated_at: row.get(16)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)

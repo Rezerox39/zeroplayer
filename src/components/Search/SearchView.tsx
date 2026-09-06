@@ -31,6 +31,7 @@ export default function SearchView() {
   const [menuTrackId, setMenuTrackId] = useState<string | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [plMsg, setPlMsg] = useState('');
+  const { likedIds, toggleLike } = usePlayerStore();
 
   useEffect(() => {
     getPlaylists().then(setPlaylists).catch(() => setPlaylists([]));
@@ -144,6 +145,7 @@ export default function SearchView() {
           const thumb = track.source === 'youtube_music'
             ? (track.cover_path?.startsWith('http') ? track.cover_path : undefined)
             : fileUrl(track.cover_path);
+          const liked = likedIds.has(track.id);
           return (
             <div
               key={`${track.source}-${track.id}-${i}`}
@@ -174,6 +176,12 @@ export default function SearchView() {
                   loading...
                 </span>
               )}
+              <button
+                onClick={async (e) => { e.stopPropagation(); if (liked) { await import('../../lib/tauri').then(m => m.unlikeTrack(track.id)); } else { await import('../../lib/tauri').then(m => m.likeTrack(track.id)); } toggleLike(track.id); }}
+                className={`text-sm transition-colors ${liked ? 'text-red-500' : 'text-gray-700 hover:text-red-400'}`}
+              >
+                {liked ? '♥' : '♡'}
+              </button>
               <div className="relative">
                 <button
                   onClick={(e) => { e.stopPropagation(); setMenuTrackId(menuTrackId === track.id ? null : track.id); }}

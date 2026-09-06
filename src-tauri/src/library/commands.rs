@@ -1,4 +1,4 @@
-use super::{Album, Artist, Folder, Genre, Playlist, Track};
+use super::{Album, Artist, BlockEntry, Folder, Genre, Playlist, Track};
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -52,6 +52,136 @@ pub async fn get_artists(state: State<'_, AppState>) -> Result<Vec<Artist>, Stri
 #[tauri::command]
 pub async fn get_genres(state: State<'_, AppState>) -> Result<Vec<Genre>, String> {
     state.library.get_genres().map_err(|e| e.to_string())
+}
+
+// ── Liked tracks ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn like_track(state: State<'_, AppState>, track_id: String) -> Result<(), String> {
+    state.library.like_track(&track_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn unlike_track(state: State<'_, AppState>, track_id: String) -> Result<(), String> {
+    state.library.unlike_track(&track_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn is_liked(state: State<'_, AppState>, track_id: String) -> Result<bool, String> {
+    state.library.is_liked(&track_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_liked_ids(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    state.library.get_liked_ids().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_liked_tracks(state: State<'_, AppState>) -> Result<Vec<Track>, String> {
+    let ids = state.library.get_liked_ids().map_err(|e| e.to_string())?;
+    let all = state.library.get_tracks(None).map_err(|e| e.to_string())?;
+    let id_set: std::collections::HashSet<String> = ids.into_iter().collect();
+    Ok(all.into_iter().filter(|t| id_set.contains(&t.id)).collect())
+}
+
+// ── Blocklist ─────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn block_track(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    state.library.block_path(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn unblock_track(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    state.library.unblock_path(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_blocklist(state: State<'_, AppState>) -> Result<Vec<BlockEntry>, String> {
+    state.library.get_blocklist().map_err(|e| e.to_string())
+}
+
+// ── Tag editing ───────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn update_track_meta(
+    state: State<'_, AppState>,
+    track_id: String,
+    title: String,
+    artist: String,
+    album: String,
+    genre: String,
+    year: Option<i32>,
+) -> Result<(), String> {
+    state.library
+        .update_track_meta(&track_id, &title, &artist, &album, &genre, year)
+        .map_err(|e| e.to_string())
+}
+
+// ── Home shelves ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_recently_played(state: State<'_, AppState>) -> Result<Vec<Track>, String> {
+    state.library.get_recently_played(12).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_top_played(state: State<'_, AppState>) -> Result<Vec<Track>, String> {
+    state.library.get_top_played(12).map_err(|e| e.to_string())
+}
+
+// ── Export playlist ───────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn export_playlist(
+    state: State<'_, AppState>,
+    playlist_id: String,
+    format: String,
+) -> Result<String, String> {
+    let tracks = state.library.get_playlist_tracks(&playlist_id).map_err(|e| e.to_string())?;
+    let playlists = state.library.get_playlists().map_err(|e| e.to_string())?;
+    let pl = playlists.iter().find(|p| p.id == playlist_id).map(|p| p.name.as_str()).unwrap_or("playlist");
+
+    let app_dir = std::env::var("APP_DIR").unwrap_or_else(|_| ".".to_string());
+    let export_dir = std::path::PathBuf::from(&app_dir).join("exports");
+    std::fs::create_dir_all(&export_dir).map_err(|e| e.to_string())?;
+
+    match format.as_str() {
+        "m3u" => {
+            let mut lines = vec!["#EXTM3U".to_string()];
+            for t in &tracks {
+                let dur = t.duration.map(|d| d as i64).unwrap_or(-1);
+                let artist = t.artist.as_deref().unwrap_or("Unknown");
+                let path = t.file_path.as_deref().unwrap_or("");
+                lines.push(format!("#EXTINF:{},{} - {}", dur, artist, t.title));
+                lines.push(path.to_string());
+            }
+            let content = lines.join("\n");
+            let file_name = format!("{}.m3u", pl.replace(|c: char| !c.is_alphanumeric() && c != ' ', "_"));
+            let path = export_dir.join(&file_name);
+            std::fs::write(&path, &content).map_err(|e| e.to_string())?;
+            Ok(path.display().to_string())
+        }
+        _ => {
+            // JSON export
+            let data = serde_json::json!({
+                "name": pl,
+                "track_count": tracks.len(),
+                "tracks": tracks.iter().map(|t| serde_json::json!({
+                    "title": t.title,
+                    "artist": t.artist,
+                    "album": t.album,
+                    "duration": t.duration,
+                    "source": t.source,
+                    "file_path": t.file_path,
+                })).collect::<Vec<_>>(),
+            });
+            let file_name = format!("{}.json", pl.replace(|c: char| !c.is_alphanumeric() && c != ' ', "_"));
+            let path = export_dir.join(&file_name);
+            std::fs::write(&path, data.to_string()).map_err(|e| e.to_string())?;
+            Ok(path.display().to_string())
+        }
+    }
 }
 
 #[tauri::command]

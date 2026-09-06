@@ -39,6 +39,10 @@ pub struct PlaybackConfig {
     pub speed: f32,
     pub gapless: bool,
     pub crossfade_secs: f32,
+    #[serde(default)]
+    pub normalize_volume: bool,
+    #[serde(default)]
+    pub equalizer_preset: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,6 +92,8 @@ impl Default for AppConfig {
                 speed: 1.0,
                 gapless: false,
                 crossfade_secs: 0.0,
+                normalize_volume: false,
+                equalizer_preset: -1,
             },
             jellyfin: None,
             youtube_music: None,

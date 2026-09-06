@@ -17,7 +17,27 @@ interface PlayerStore {
   /** Context tracks from the view that initiated playback (search, library, etc.) */
   playContext: Track[];
   playContextIdx: number;
+  /** Set of liked track ids (heart state) */
+  likedIds: Set<string>;
+  /** Home shelves */
+  recentlyPlayed: Track[];
+  topPlayed: Track[];
+  /** Selection mode (ZMT selection-mode parity) */
+  selectionMode: boolean;
+  selectedIds: Set<string>;
+  /** Download progress */
+  downloadProgress: number; // -1 idle, 0-100, >100 done
+  downloadError: string | null;
   setPlayContext: (tracks: Track[], idx: number) => void;
+  setLikedIds: (ids: string[]) => void;
+  toggleLike: (trackId: string) => void;
+  setRecentlyPlayed: (tracks: Track[]) => void;
+  setTopPlayed: (tracks: Track[]) => void;
+  setSelectionMode: (v: boolean) => void;
+  toggleSelected: (trackId: string) => void;
+  clearSelected: () => void;
+  setDownloadProgress: (p: number) => void;
+  setDownloadError: (e: string | null) => void;
 
   // Player actions
   setPlayback: (state: PlaybackState) => void;
@@ -50,13 +70,39 @@ export const usePlayerStore = create<PlayerStore>((set) => ({
   shuffled: false,
   lyrics: null,
   lyricsSynced: false,
-  activeView: 'player',
+  activeView: 'home',
   libraryView: 'tracks',
   searchQuery: '',
   searchResults: [],
   currentSrc: null,
   playContext: [],
   playContextIdx: 0,
+  likedIds: new Set(),
+  recentlyPlayed: [],
+  topPlayed: [],
+  selectionMode: false,
+  selectedIds: new Set(),
+  downloadProgress: -1,
+  downloadError: null,
+  setLikedIds: (ids) => set({ likedIds: new Set(ids) }),
+  toggleLike: (trackId) =>
+    set((s) => {
+      const next = new Set(s.likedIds);
+      if (next.has(trackId)) next.delete(trackId); else next.add(trackId);
+      return { likedIds: next };
+    }),
+  setRecentlyPlayed: (recentlyPlayed) => set({ recentlyPlayed }),
+  setTopPlayed: (topPlayed) => set({ topPlayed }),
+  setSelectionMode: (selectionMode) => set({ selectionMode, selectedIds: new Set() }),
+  toggleSelected: (trackId) =>
+    set((s) => {
+      const next = new Set(s.selectedIds);
+      if (next.has(trackId)) next.delete(trackId); else next.add(trackId);
+      return { selectedIds: next };
+    }),
+  clearSelected: () => set({ selectedIds: new Set() }),
+  setDownloadProgress: (downloadProgress) => set({ downloadProgress }),
+  setDownloadError: (downloadError) => set({ downloadError }),
   setPlayContext: (tracks, idx) => set({ playContext: tracks, playContextIdx: idx }),
 
   setPlayback: (state) => set({ playback: state }),

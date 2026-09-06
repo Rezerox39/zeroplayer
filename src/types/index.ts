@@ -102,11 +102,25 @@ export interface AppConfig {
   setup_done?: boolean;
 }
 
-export type ViewTab = 'player' | 'library' | 'search' | 'queue' | 'stats' | 'settings';
+export type ViewTab = 'home' | 'player' | 'library' | 'search' | 'queue' | 'stats' | 'settings';
 
 export type LibraryTab = 'tracks' | 'albums' | 'artists' | 'genres' | 'folders' | 'playlists';
 
 export interface Genre {
   name: string;
   track_count: number;
+}
+
+export interface BlockEntry {
+  path: string;
+  created_at?: string;
+}
+
+export interface PlaybackConfig {
+  volume: number;
+  speed: number;
+  gapless: boolean;
+  crossfade_secs: number;
+  normalize_volume?: boolean;
+  equalizer_preset?: number;
 }

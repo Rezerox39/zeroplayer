@@ -3,6 +3,7 @@ import { usePlayerStore } from '../../stores/playerStore';
 import { useLibraryStore } from '../../stores/libraryStore';
 import {
   cmdAddToQueue,
+  cmdRemoveFromQueue,
   scanLocalFiles,
   fileUrl,
   getPlaylists,
@@ -12,11 +13,15 @@ import {
   importSpotifyPlaylist,
   importYoutubePlaylist,
   removeFromPlaylist,
+  likeTrack,
+  unlikeTrack,
+  exportPlaylist,
 } from '../../lib/tauri';
 import { playTrackAndSet } from '../../lib/player';
+import TagEditorModal from '../common/TagEditorModal';
 import type { Track, Album, Artist, Folder, LibraryTab, Playlist } from '../../types';
 
-const TABS: LibraryTab[] = ['tracks', 'albums', 'artists', 'genres', 'folders', 'playlists'];
+const TABS: LibraryTab[] = ['tracks', 'albums', 'artists', 'genres', 'folders', 'playlists', 'liked'];
 
 function formatDuration(secs: number): string {
   if (!secs) return '';
@@ -30,6 +35,7 @@ function formatDuration(secs: number): string {
 export default function LibraryView() {
   const { libraryView, setLibraryView } = usePlayerStore();
   const { tracks, albums, artists, genres, folders } = useLibraryStore();
+  const { likedIds, toggleLike, setSelectionMode, selectionMode, selectedIds, toggleSelected } = usePlayerStore();
   const [scanDir, setScanDir] = useState('');
   const [scanning, setScanning] = useState(false);
   const [playError, setPlayError] = useState('');
@@ -40,6 +46,7 @@ export default function LibraryView() {
   const [spotifyUrl, setSpotifyUrl] = useState('');
   const [playlistMsg, setPlaylistMsg] = useState('');
   const [playlistBusy, setPlaylistBusy] = useState(false);
+  const [editingTrack, setEditingTrack] = useState<Track | null>(null);
 
   const refreshPlaylists = async () => {
     try {
@@ -135,6 +142,37 @@ export default function LibraryView() {
     await playTrackFromLib(track, list);
   };
 
+  const handleTagSave = (updated: Track) => {
+    const { setTracks } = useLibraryStore.getState();
+    const all = useLibraryStore.getState().tracks;
+    setTracks(all.map((t) => t.id === updated.id ? updated : t));
+    setEditingTrack(null);
+  };
+
+  const likedTracks = tracks.filter((t) => likedIds.has(t.id));
+
+  const handleLike = async (track: Track) => {
+    if (likedIds.has(track.id)) {
+      await unlikeTrack(track.id); toggleLike(track.id);
+    } else {
+      await likeTrack(track.id); toggleLike(track.id);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    for (const id of selectedIds) {
+      await cmdRemoveFromQueue([...selectedIds].indexOf(id));
+    }
+    setSelectionMode(false);
+  };
+
+  const handleExportPlaylist = async (plId: string, fmt: string) => {
+    try {
+      const path = await exportPlaylist(plId, fmt);
+      setPlaylistMsg(`exported to ${path}`);
+    } catch (e: any) { setPlaylistMsg(String(e)); }
+  };
+
   const handleScan = async () => {
     if (!scanDir) return;
     setScanning(true);
@@ -164,6 +202,7 @@ export default function LibraryView() {
   };
 
   return (
+    <>
     <div className="flex flex-col h-full">
       {/* Tabs */}
       <div className="flex border-b border-surface-2 px-4">
@@ -246,6 +285,20 @@ export default function LibraryView() {
                 >
                   +
                 </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleLike(track); }}
+                  className={`text-sm transition-colors ${likedIds.has(track.id) ? 'text-red-500' : 'text-gray-700 hover:text-red-400'}`}
+                  title="Like"
+                >
+                  {likedIds.has(track.id) ? '♥' : '♡'}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditingTrack(track); }}
+                  className="font-mono text-[10px] text-gray-700 hover:text-gray-300 px-1.5"
+                  title="Edit tags"
+                >
+                  ✎
+                </button>
               </div>
             ))}
             {tracks.length === 0 && (
@@ -326,6 +379,31 @@ export default function LibraryView() {
           </div>
         )}
 
+        {libraryView === 'liked' && (
+          <div className="divide-y divide-surface-2">
+            {likedTracks.length === 0 && (
+              <div className="p-12 text-center font-mono text-xs text-gray-600">
+                no liked tracks — tap the ♥ on any song
+              </div>
+            )}
+            {likedTracks.map((track, i) => (
+              <div
+                key={track.id || i}
+                onClick={() => playTrackFromLib(track, likedTracks)}
+                className="flex items-center gap-4 px-5 py-2.5 cursor-pointer hover:bg-surface-1 transition-colors"
+              >
+                <span className="font-mono text-[10px] text-gray-600 w-6 text-right">{i + 1}</span>
+                <span className="text-sm text-red-500">♥</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono text-xs text-gray-200 truncate">{track.title}</div>
+                  <div className="font-mono text-[10px] text-gray-500 truncate">{track.artist || '—'}</div>
+                </div>
+                <button onClick={(e) => { e.stopPropagation(); handleLike(track); }} className="text-sm text-gray-700 hover:text-red-400">♡</button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {libraryView === 'folders' && (
           <div className="divide-y divide-surface-2">
             {folders.map((folder, i) => (
@@ -386,13 +464,20 @@ export default function LibraryView() {
                       <div className="font-mono text-xs text-gray-200 truncate">{pl.name}</div>
                       <div className="font-mono text-[10px] text-gray-600">{pl.created_at?.slice(0, 10) || ''}</div>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeletePlaylist(pl.id); }}
-                      className="text-[10px] text-gray-600 hover:text-red-500 px-1.5"
-                      title="delete playlist"
-                    >
-                      ✕
-                    </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeletePlaylist(pl.id); }}
+                        className="text-[10px] text-gray-600 hover:text-red-500 px-1.5"
+                        title="delete playlist"
+                      >
+                        ✕
+                      </button>
+                      <button
+                        onClick={async (e) => { e.stopPropagation(); await handleExportPlaylist(pl.id, 'json'); }}
+                        className="text-[10px] text-gray-600 hover:text-[var(--accent)] px-1.5"
+                        title="export playlist (JSON)"
+                      >
+                        ↓
+                      </button>
                   </div>
                 ))}
                 {playlists.length === 0 && (
@@ -462,5 +547,9 @@ export default function LibraryView() {
         )}
       </div>
     </div>
+    {editingTrack && (
+      <TagEditorModal track={editingTrack} onClose={() => setEditingTrack(null)} onSave={handleTagSave} />
+    )}
+    </>
   );
 }
