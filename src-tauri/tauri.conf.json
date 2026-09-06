@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicholasgasior/tauri-conf-schema/main/schema.json",
   "productName": "ZeroPlayer",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "identifier": "com.zeroplayer.app",
   "build": {
     "beforeDevCommand": "npm run dev",
