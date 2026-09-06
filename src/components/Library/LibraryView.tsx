@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
 import { useLibraryStore } from '../../stores/libraryStore';
-import { cmdAddToQueue, scanLocalFiles } from '../../lib/tauri';
+import { cmdAddToQueue, scanLocalFiles, fileUrl } from '../../lib/tauri';
 import { playTrackAndSet } from '../../lib/player';
 import type { Track, Album, Artist, Folder, LibraryTab } from '../../types';
 
@@ -41,6 +41,13 @@ export default function LibraryView() {
     } catch (e: any) {
       console.error('Play error:', e);
       setPlayError(`Failed to play "${track.title}": ${e}`);
+    }
+  };
+
+  const playAlbum = async (album: Album) => {
+    const albumTracks = tracks.filter((t) => t.album === album.name);
+    if (albumTracks.length > 0) {
+      await playTrackFromLib(albumTracks[0]);
     }
   };
 
@@ -99,6 +106,17 @@ export default function LibraryView() {
                 <span className="font-mono text-[10px] text-gray-600 w-6 text-right">
                   {i + 1}
                 </span>
+                {track.cover_path ? (
+                  <img
+                    src={fileUrl(track.cover_path)}
+                    alt=""
+                    className="w-10 h-10 rounded-sm object-cover border border-surface-3"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-sm bg-surface-2 border border-surface-3 flex items-center justify-center font-mono text-sm text-gray-700">
+                    ♫
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="font-mono text-xs text-gray-200 truncate">{track.title}</div>
                   <div className="font-mono text-[10px] text-gray-500 truncate">{track.artist || '—'}</div>
@@ -127,14 +145,26 @@ export default function LibraryView() {
         )}
 
         {libraryView === 'albums' && (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 p-4">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4 p-4">
             {albums.map((album, i) => (
-              <div key={i} className="bg-surface-1 border border-surface-2 p-4 hover:border-[var(--accent)] transition-colors cursor-pointer">
-                <div className="w-full aspect-square bg-surface-2 mb-3 flex items-center justify-center">
-                  <span className="font-mono text-2xl text-gray-700">♫</span>
+              <div
+                key={i}
+                onClick={() => playAlbum(album)}
+                className="bg-surface-1 border border-surface-2 p-3 hover:border-[var(--accent)] transition-colors cursor-pointer"
+              >
+                <div className="w-full aspect-square bg-surface-2 mb-3 flex items-center justify-center overflow-hidden border border-surface-3">
+                  {album.cover_path ? (
+                    <img
+                      src={fileUrl(album.cover_path)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="font-mono text-2xl text-gray-700">♫</span>
+                  )}
                 </div>
                 <div className="font-mono text-xs text-gray-200 truncate">{album.name}</div>
-                <div className="font-mono text-[10px] text-gray-500 mt-0.5">{album.artist || '—'}</div>
+                <div className="font-mono text-[10px] text-gray-500 mt-0.5 truncate">{album.artist || '—'}</div>
                 <div className="font-mono text-[10px] text-gray-600 mt-0.5">{album.track_count} tracks</div>
               </div>
             ))}

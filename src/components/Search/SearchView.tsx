@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { usePlayerStore } from '../../stores/playerStore';
-import { searchLibrary, ytmusicSearchAsTracks, jellyfinSearch } from '../../lib/tauri';
+import { searchLibrary, ytmusicSearchAsTracks, jellyfinSearch, fileUrl } from '../../lib/tauri';
 import { playTrackAndSet } from '../../lib/player';
 import type { Track } from '../../types';
 
@@ -107,31 +107,44 @@ export default function SearchView() {
       </div>
 
       <div className="flex-1 overflow-y-auto divide-y divide-surface-2">
-        {results.map((track, i) => (
-          <div
-            key={`${track.source}-${track.id}-${i}`}
-            onClick={() => handlePlay(track)}
-            className="flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-surface-1 transition-colors"
-          >
-            <span className="font-mono text-[9px] px-1.5 py-0.5 border border-surface-3 text-gray-500 w-18 text-center">
-              {track.source}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="font-mono text-xs text-gray-200 truncate">{track.title}</div>
-              <div className="font-mono text-[10px] text-gray-500 truncate">{track.artist || '—'}</div>
+        {results.map((track, i) => {
+          // YT search results carry a remote thumbnail URL; local tracks carry a file path.
+          const thumb = track.source === 'youtube_music'
+            ? (track.cover_path?.startsWith('http') ? track.cover_path : undefined)
+            : fileUrl(track.cover_path);
+          return (
+            <div
+              key={`${track.source}-${track.id}-${i}`}
+              onClick={() => handlePlay(track)}
+              className="flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-surface-1 transition-colors"
+            >
+              {thumb ? (
+                <img src={thumb} alt="" className="w-10 h-10 rounded-sm object-cover border border-surface-3" />
+              ) : (
+                <div className="w-10 h-10 rounded-sm bg-surface-2 border border-surface-3 flex items-center justify-center font-mono text-sm text-gray-700">
+                  ♫
+                </div>
+              )}
+              <span className="font-mono text-[9px] px-1.5 py-0.5 border border-surface-3 text-gray-500 w-18 text-center">
+                {track.source}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-xs text-gray-200 truncate">{track.title}</div>
+                <div className="font-mono text-[10px] text-gray-500 truncate">{track.artist || '—'}</div>
+              </div>
+              {track.duration && (
+                <span className="font-mono text-[10px] text-gray-600">
+                  {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
+                </span>
+              )}
+              {playingId === track.id && (
+                <span className="font-mono text-[10px] text-[var(--accent)] animate-pulse">
+                  loading...
+                </span>
+              )}
             </div>
-            {track.duration && (
-              <span className="font-mono text-[10px] text-gray-600">
-                {Math.floor(track.duration / 60)}:{Math.floor(track.duration % 60).toString().padStart(2, '0')}
-              </span>
-            )}
-            {playingId === track.id && (
-              <span className="font-mono text-[10px] text-[var(--accent)] animate-pulse">
-                loading...
-              </span>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {results.length === 0 && !searching && !error && (
           <div className="p-12 text-center font-mono text-xs text-gray-600">
             {query ? 'no results' : 'type a query and press enter'}

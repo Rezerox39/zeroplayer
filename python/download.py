@@ -26,6 +26,7 @@ def resolve_stream(video_id: str) -> str:
         "skip_download": True,
         "quiet": True,
         "no_warnings": True,
+        "noprogress": True,
         "geo_bypass": True,
         "no_check_certificates": True,
         "extractor_args": {
@@ -154,6 +155,7 @@ def download_to_file(video_id: str, out_dir: str = "") -> str:
         "outtmpl": outtmpl,
         "quiet": True,
         "no_warnings": True,
+        "noprogress": True,
         "geo_bypass": True,
         "no_check_certificates": True,
         "extractor_args": {

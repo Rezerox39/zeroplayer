@@ -109,9 +109,21 @@ impl YTMusicClient {
         Ok(stdout)
     }
 
+    /// Extract the JSON object from a script's stdout, skipping any
+    /// non-JSON noise (progress bars, warnings) printed before it.
+    fn extract_json(output: &str) -> Result<String, String> {
+        let start = output.find('{');
+        let end = output.rfind('}').ok_or_else(|| "No JSON object in output".to_string())?;
+        match start {
+            Some(s) if s < end => Ok(output[s..=end].to_string()),
+            _ => Err(format!("No JSON object in output: {}", &output.chars().take(200).collect::<String>())),
+        }
+    }
+
     pub fn search(&self, query: &str) -> Result<Vec<YTMusicSearchResult>, String> {
         let out = self.run_script(&["search", query])?;
-        let parsed: YTSearchResponse = serde_json::from_str(&out)
+        let json = Self::extract_json(&out)?;
+        let parsed: YTSearchResponse = serde_json::from_str(&json)
             .map_err(|e| format!("Failed to parse response: {} (output was: {})", e, &out.chars().take(200).collect::<String>()))?;
         if let Some(err) = parsed.error {
             return Err(err);
@@ -121,7 +133,8 @@ impl YTMusicClient {
 
     pub fn resolve_stream(&self, video_id: &str) -> Result<YTStreamResponse, String> {
         let out = self.run_script(&["stream", video_id])?;
-        let parsed: YTStreamResponse = serde_json::from_str(&out)
+        let json = Self::extract_json(&out)?;
+        let parsed: YTStreamResponse = serde_json::from_str(&json)
             .map_err(|e| format!("Failed to parse response: {}", e))?;
         if let Some(err) = parsed.error {
             return Err(err);
@@ -153,7 +166,9 @@ impl YTMusicClient {
 
     pub fn download_to_temp(&self, video_id: &str) -> Result<String, String> {
         let out = self.run_script(&["download", video_id])?;
-        let parsed: serde_json::Value = serde_json::from_str(&out)
+        let json = Self::extract_json(&out)
+            .map_err(|e| format!("Failed to parse download response: {}", e))?;
+        let parsed: serde_json::Value = serde_json::from_str(&json)
             .map_err(|e| format!("Failed to parse download response: {}", e))?;
         if let Some(err) = parsed.get("error").and_then(|e| e.as_str()) {
             return Err(err.to_string());
