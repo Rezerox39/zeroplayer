@@ -1,15 +1,26 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useCallback } from 'react';
+
+const appWindow = getCurrentWindow();
 
 export default function TitleBar() {
-  const appWindow = getCurrentWindow();
+  const handleDrag = useCallback(async (e: React.MouseEvent) => {
+    // Ignore clicks on buttons or inside buttons
+    if ((e.target as HTMLElement).closest('button')) return;
+    try {
+      await appWindow.startDragging();
+    } catch {
+      // fallback: if startDragging fails, ignore
+    }
+  }, []);
 
   return (
     <div
-      data-tauri-drag-region
       className="h-9 w-full flex-shrink-0 flex items-center px-4 bg-black-pure border-b border-surface-2 select-none"
+      onMouseDown={handleDrag}
     >
       {/* Left: brand + credit */}
-      <div className="flex items-center gap-2" data-tauri-drag-region>
+      <div className="flex items-center gap-2 pointer-events-none">
         <span className="font-mono text-xs font-bold tracking-wide accent-text">
           ZeroPlayer
         </span>
@@ -19,11 +30,11 @@ export default function TitleBar() {
         </span>
       </div>
 
-      {/* Center: drag region spacer */}
-      <div className="flex-1 h-full" data-tauri-drag-region />
+      {/* Center: spacer */}
+      <div className="flex-1 h-full pointer-events-none" />
 
       {/* Right: macOS-style window controls */}
-      <div className="flex items-center gap-2.5" data-tauri-drag-region>
+      <div className="flex items-center gap-2.5 ml-2">
         <button
           onClick={() => appWindow.minimize()}
           title="Minimize"
